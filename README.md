@@ -2,7 +2,7 @@
 
 A counting game for a 2.5-year-old who loves watching things take off.
 
-**Play it:** https://tuckerhuth.github.io/theo-blastoff/
+**Play it:** https://tuckerhuth.com/theo-blastoff/
 
 Counting **up** loads the rocket, counting **down** launches it. The countdown
 is the one place in a toddler's world where counting backwards actually means
