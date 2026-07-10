@@ -336,6 +336,33 @@ body {
 .rocket-bounce { display: inline-block; animation: rocket-bounce 1.6s ease infinite; }
 @keyframes rocket-bounce { 50% { transform: translateY(-1.5vmin); } }
 
+/* ---------- theme picker (title screen) ---------- */
+
+#themePicker {
+  margin-top: 4vh;
+  display: flex;
+  justify-content: center;
+  gap: 3.5vmin;
+}
+.theme-card {
+  pointer-events: auto;
+  width: clamp(84px, 16vmin, 170px);
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 26%;
+  background: rgba(255,255,255,.12);
+  box-shadow: 0 .8vmin 0 rgba(0,0,0,.25), inset 0 .6vmin 0 rgba(255,255,255,.14);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .2s ease;
+}
+.theme-card span { font-size: 8vmin; line-height: 1; filter: drop-shadow(0 .4vmin .6vmin rgba(0,0,0,.4)); }
+.theme-card:active { transform: scale(.93); }
+.theme-card.selected {
+  background: rgba(255,217,74,.22);
+  box-shadow: 0 0 0 .5vmin var(--star-gold), 0 .8vmin 0 rgba(0,0,0,.25);
+}
+
 .shelf {
   margin-top: 6vh;
   display: flex; flex-wrap: wrap; justify-content: center;

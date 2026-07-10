@@ -185,6 +185,11 @@ function drainPending() {
   cb(); // engine advances and re-arms via voiceExpect → drains the rest
 }
 
+// Title-screen theme switching by voice ("rocket"/"knight"/"dragon"). Set
+// once at boot (js/main.js); callbacks re-guard against a mid-round switch.
+let titleCommands = null;
+export function setTitleCommands(map) { titleCommands = map; }
+
 // Core of recognition handling; also reachable as window.__hear for testing.
 function hear(transcript) {
   let tokens = (transcript || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -208,6 +213,15 @@ function hear(transcript) {
       tokens = rest.split(/[^a-z0-9]+/).filter(Boolean);
       if (!tokens.length) return; // nothing but game speech
       joined = tokens.join(' ');
+    }
+  }
+
+  // Title-screen theme words. Only between rounds (no expectation armed) and
+  // never while the game itself is speaking — a mid-round "dragon" must never
+  // switch the world out from under an in-progress question.
+  if (!muted && wanted === null && titleCommands) {
+    for (const tok of tokens) {
+      if (titleCommands[tok]) { titleCommands[tok](); return; }
     }
   }
 

@@ -6,7 +6,7 @@ import { initFx } from './fx.js';
 import { initInput } from './input.js';
 import { THEMES, setActiveTheme, activeTheme } from './themes/index.js';
 import { initEngine, setTheme, isRunning } from './engine.js';
-import { initVoice } from './voice.js';
+import { initVoice, setTitleCommands } from './voice.js';
 import { setVoicePack, hushSpeech } from './audio.js';
 
 store.load();
@@ -22,21 +22,44 @@ initEngine(startingTheme);
 
 // Switch the active game world (rocket/knight/...). Only takes effect at the
 // title screen — mid-round switches would swap art/voice under the child's
-// feet. The title-screen theme cards and voice commands (js/main.js Stage 3)
-// both call this.
+// feet. Both the theme cards and title voice commands below call this.
 function switchTheme(name) {
   if (isRunning()) return;
   const next = THEMES[name];
-  if (!next || next === activeTheme()) return;
-  hushSpeech();
-  activeTheme().unmount?.(); // before the new mount, so CSS-var overrides never stack
-  const t = setActiveTheme(name);
-  store.data.theme = name;
-  store.save();
-  t.mount(ui.els.scene);
-  setTheme(t);
-  setVoicePack(t.name);
+  if (next && next !== activeTheme()) {
+    hushSpeech();
+    activeTheme().unmount?.(); // before the new mount, so CSS-var overrides never stack
+    const t = setActiveTheme(name);
+    store.data.theme = name;
+    store.save();
+    t.mount(ui.els.scene);
+    setTheme(t);
+    setVoicePack(t.name);
+  }
+  syncThemeCards();
 }
+
+function syncThemeCards() {
+  const name = activeTheme().name;
+  for (const card of document.querySelectorAll('.theme-card')) {
+    card.classList.toggle('selected', card.dataset.theme === name);
+  }
+}
+syncThemeCards(); // reflect the boot-time theme
+
+for (const card of document.querySelectorAll('.theme-card')) {
+  // #title itself starts a session on both pointerdown AND click — a card
+  // tap must never bubble into either, or picking a world launches a round.
+  const activate = (e) => { e.stopPropagation(); switchTheme(card.dataset.theme); };
+  card.addEventListener('pointerdown', activate);
+  card.addEventListener('click', activate);
+}
+
+setTitleCommands({
+  rocket: () => switchTheme('rocket'),
+  knight: () => switchTheme('knight'),
+  dragon: () => switchTheme('knight'),
+});
 
 // Debug handle (harmless in production; handy for poking at state).
 window.__blastoff = { store, ui, switchTheme };
