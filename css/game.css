@@ -61,7 +61,7 @@ body {
 
 .tile {
   pointer-events: auto;
-  width: clamp(110px, 26vmin, 300px);
+  width: clamp(100px, 22vmin, 260px);
   aspect-ratio: 1;
   border: none;
   border-radius: 24%;
@@ -82,14 +82,14 @@ body {
   animation: tile-in .38s cubic-bezier(.2,1.6,.4,1) backwards;
 }
 .tile:active { transform: scale(.93) translateY(.6vmin); }
-.tile.solo { width: clamp(150px, 36vmin, 420px); }
+.tile.solo { width: clamp(140px, 30vmin, 340px); }
 
 .tile .numeral {
-  font-size: 13vmin;
+  font-size: 11vmin;
   line-height: 1;
   text-shadow: 0 .5vmin 0 rgba(0,0,0,.2);
 }
-.tile.solo .numeral { font-size: 19vmin; }
+.tile.solo .numeral { font-size: 16vmin; }
 
 /* ten-frame dots under the numeral — subitizing support */
 .tile .dots {
@@ -236,13 +236,40 @@ body {
 #ghost.bouncing { animation: ghost-bounce .8s ease infinite; }
 @keyframes ghost-bounce { 50% { transform: translateY(-3vmin); } }
 
-/* ---------- parent zone (invisible hold target) ---------- */
+/* ---------- parent gear button ---------- */
+/* Visible so parents can find it; on touch devices it needs a 2s hold
+   (progress ring fills), so a mashing toddler can't open it. */
 
-#parentZone {
+#parentBtn {
   position: absolute;
-  top: 0; left: 0;
-  width: 16vmin; height: 16vmin;
+  top: max(1.5vh, env(safe-area-inset-top));
+  left: max(2vmin, env(safe-area-inset-left));
+  width: 9vmin; height: 9vmin;
+  min-width: 44px; min-height: 44px;
   z-index: 90;
+  border: none;
+  border-radius: 50%;
+  background:
+    conic-gradient(#7ed957 calc(var(--hold, 0) * 360deg), transparent 0deg) border-box;
+  padding: 0.5vmin;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#parentBtn .gear {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  background: rgba(20, 24, 64, .75);
+  font-size: 4.5vmin;
+  opacity: .75;
+}
+#parentBtn:active .gear { opacity: 1; }
+
+#parentHint {
+  margin-top: 2.5vh;
+  font-size: 2.4vmin;
+  color: #aab1e8;
+  opacity: .75;
 }
 
 /* ---------- overlays ---------- */

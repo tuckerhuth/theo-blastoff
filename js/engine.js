@@ -7,7 +7,7 @@ import { store } from './store.js';
 import { initAudio, speak, numClip, sfx } from './audio.js';
 import { setTargets, clearTargets } from './input.js';
 import { makeSequence, makeStep } from './tasks.js';
-import { roundPlan, afterPhase } from './levels.js';
+import { roundPlan, afterPhase, afterRound } from './levels.js';
 import { ui, STICKERS } from './ui.js';
 import { confettiBurst } from './fx.js';
 import { voiceExpect, voiceClearExpect, voiceRefresh } from './voice.js';
@@ -157,6 +157,7 @@ async function runRound({ tutorial = false } = {}) {
   ui.hideBigNum();
   const planUp = tutorial ? { level: 0, len: 3, masked: false } : roundPlan('up');
   const planDown = tutorial ? { level: 0, len: 3, masked: false } : roundPlan('down');
+  theme.setRange(planUp.len); // one number per round: build to N, count down from N
 
   // BUILD — counting up
   theme.setMasked(planUp.masked);
@@ -195,8 +196,9 @@ async function runRound({ tutorial = false } = {}) {
   await speak([`great${1 + Math.floor(Math.random() * 3)}`]);
 
   if (!tutorial) {
-    afterPhase('up', upStats);
-    afterPhase('down', downStats);
+    const accUp = afterPhase('up', upStats);
+    const accDown = afterPhase('down', downStats);
+    afterRound(accUp, accDown);
   }
   store.data.launches++;
   store.save();
@@ -289,7 +291,7 @@ export function initEngine(selectedTheme) {
     session().catch(err => { console.error(err); toTitle(); });
   });
 
-  ui.initParentZone(() => ui.openParent());
+  ui.initParentButton(() => ui.openParent());
   ui.els.btnCloseParent.addEventListener('click', () => ui.hide('parent'));
   ui.els.btnTutorial.addEventListener('click', () => {
     store.data.tutorialDone = false;

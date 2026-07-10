@@ -6,8 +6,8 @@ const DEFAULTS = {
   tutorialDone: false,
   levelUp: 1, levelDown: 1,          // 1=far pair 2=near pair 3=triple 4=all-near triple (0=tutorial solo)
   streakUp: 0, streakDown: 0,
-  seqLenUp: 5, seqLenDown: 5,        // grows to 10 with success
-  roundsAtLenUp: 0, roundsAtLenDown: 0, // 0 → new territory, tower numbers shown
+  seqLen: 5,                         // ONE number per round: build to N, count down from N
+  roundsAtLen: 0,                    // 0 → new territory, tower numbers shown
   transitions: {},                   // "u:3>4" | "d:8>7" -> { ok, err }
   stickers: [],                      // earned sticker emoji, in order
   launches: 0,
@@ -26,6 +26,14 @@ export const store = {
       if (raw) {
         const saved = JSON.parse(raw);
         this.data = { ...clone(DEFAULTS), ...saved, settings: { ...DEFAULTS.settings, ...(saved.settings || {}) } };
+        // migrate pre-unification saves (separate up/down ranges): the
+        // countdown range was the marquee skill, so it wins
+        if (saved.seqLen === undefined && (saved.seqLenDown || saved.seqLenUp)) {
+          this.data.seqLen = saved.seqLenDown || saved.seqLenUp;
+          this.data.roundsAtLen = 0;
+        }
+        delete this.data.seqLenUp; delete this.data.seqLenDown;
+        delete this.data.roundsAtLenUp; delete this.data.roundsAtLenDown;
       }
     } catch { /* private mode or corrupt data — run on defaults */ }
   },

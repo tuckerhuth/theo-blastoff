@@ -86,7 +86,7 @@ export function initInput(app) {
   app.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary) return; // first finger wins; ignore multi-touch chaos
     if (!active || !active.allowAnywhere) return;
-    if (e.target.closest('.tile, .overlay, #parentZone, button')) return;
+    if (e.target.closest('.tile, .overlay, #parentBtn, button')) return;
     pick(0);
   });
 }

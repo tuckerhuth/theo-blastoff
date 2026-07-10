@@ -1,0 +1,28 @@
+# Blast Off, Theo! voice script — one clip per line: name|text|optional-rate
+# Used by generate_voice.sh (synthetic voice) and record_voice.sh (your voice).
+n1|One!
+n2|Two!
+n3|Three!
+n4|Four!
+n5|Five!
+n6|Six!
+n7|Seven!
+n8|Eight!
+n9|Nine!
+n10|Ten!
+hello|Captain Theo! Time to build your rocket!
+countup|Let's count up!
+countdown|Now, let's count down to blast off!
+whatnext|What comes next?
+watchme|Watch me!
+yourturn|Your turn!
+ready|Ready?
+blastoff|Blast off!|130
+great1|Great counting, Captain Theo!
+great2|Hooray! You did it!
+great3|Amazing counting!
+mission|Mission complete! You earned a sticker!
+onemore|One more launch?
+alldone|Great flying, Captain Theo! See you next time!
+taptoplay|Tap to play!
+allaboard|All aboard!

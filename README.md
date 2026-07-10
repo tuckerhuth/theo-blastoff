@@ -31,9 +31,11 @@ something — and the launch he loves is the reward for getting the sequence rig
   far distractor (4 vs 9) → near distractor (7 vs 8) → three tiles → three
   near tiles. One clean round moves up a level *and* stretches the counting
   range by two; a rough round steps back down.
-- **Show, then hide**: the first round at any new counting range shows the
-  tower numbers; after that, at higher levels, the un-counted numbers mask to
-  dots — recognition becomes recall.
+- **The tower is a meter, not an answer key**: from level 2, only the numbers
+  he has *already said this phase* are readable — everything ahead in the
+  direction he's counting is a dot, and the slate wipes when the direction
+  flips for the countdown. Each number he says appears and stays. (One
+  scaffolded round with visible numbers whenever the counting range grows.)
 - **Adaptive targeting**: every transition (like 8→7) is tracked. Shaky ones
   quietly get extra practice with the tempting wrong answer present.
 - **First run is a tutorial**: a ghost hand plays the first step ("Watch me!"),
@@ -43,7 +45,9 @@ something — and the launch he loves is the reward for getting the sequence rig
 
 ## Parent panel
 
-**Press and hold the top-left corner for 3 seconds.** You'll find:
+**The ⚙️ button, top-left.** One click with a mouse; on a touchscreen,
+press and hold ~2 seconds until the green ring fills (so a mashing toddler
+can't open it). You'll find:
 - Per-transition first-try accuracy (spot the missing 7 healing in real time)
 - **Difficulty steppers** — skip ahead or ease back the level and counting
   range for each direction (applies from the next round)
@@ -74,12 +78,25 @@ tiles, so mashing *plays the game*. Turn that off in the parent panel if you
 want the keyboard fully inert. (The browser still owns ⌘Q/⌘W — supervise, or
 ask for the kiosk-wrapper app version.)
 
-## Recording your own voice
+## Recording your own voice (recommended!)
 
-The counting voice is just audio files. Record yourself saying each phrase in
-`tools/generate_voice.sh` and save over the matching file in `assets/voice/`
-(same name, .m4a). Done — the game now counts in your voice.
-To regenerate the built-in voice: `./tools/generate_voice.sh`.
+The counting voice is just audio files, and a 2.5-year-old would much rather
+hear Dad than a robot. On the Mac:
+
+```
+brew install sox          # once
+./tools/record_voice.sh   # ~10 minutes
+```
+
+It walks you through every phrase — Enter to record, Enter to stop, hear it
+back, accept or retry — trims the silence, and saves straight into
+`assets/voice/`. Re-do individual clips any time with
+`./tools/record_voice.sh n7 blastoff`. When you're happy, commit and push;
+the deployed game now counts in your voice. (First recording triggers the
+macOS microphone permission prompt for your terminal.)
+
+To go back to the built-in synthetic voice: `./tools/generate_voice.sh`.
+The phrase list for both tools lives in `tools/phrases.txt`.
 
 ## Tech notes
 

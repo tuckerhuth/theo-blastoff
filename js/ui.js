@@ -16,9 +16,9 @@ export const ui = {
 
   init() {
     for (const id of ['app', 'scene', 'fx', 'tray', 'bigNum', 'stars', 'banner', 'ghost',
-      'parentZone', 'title', 'titleShelf', 'ceremony', 'bigSticker', 'ceremonyShelf',
+      'title', 'titleShelf', 'ceremony', 'bigSticker', 'ceremonyShelf',
       'alldone', 'btnOneMore', 'btnAllDone', 'parent', 'parentStats', 'parentToggles',
-      'parentLevels', 'micDot', 'btnTutorial', 'btnReset', 'btnCloseParent', 'playHint']) {
+      'parentLevels', 'micDot', 'parentBtn', 'btnTutorial', 'btnReset', 'btnCloseParent', 'playHint']) {
       this.els[id] = $(id);
     }
     this.setStars(0);
@@ -173,9 +173,8 @@ export const ui = {
 
     const rows = [
       ['up', 'level', 'Counting UP — level (1–4)', () => store.data.levelUp],
-      ['up', 'len', 'Counting UP — counts to (3–10)', () => store.data.seqLenUp],
       ['down', 'level', 'Counting DOWN — level (1–4)', () => store.data.levelDown],
-      ['down', 'len', 'Counting DOWN — counts from (3–10)', () => store.data.seqLenDown],
+      [null, 'len', 'Counting to / down from (3–10)', () => store.data.seqLen],
     ];
     for (const [dir, what, label, value] of rows) {
       const row = document.createElement('div');
@@ -208,7 +207,7 @@ export const ui = {
 
     const line = document.createElement('div');
     line.className = 'stat-line';
-    line.textContent = `Launches: ${d.launches} · Missions: ${d.missions} · Stickers: ${d.stickers.length} · Level up/down: ${d.levelUp}/${d.levelDown} · Counting to: ${d.seqLenUp} up, ${d.seqLenDown} down`;
+    line.textContent = `Launches: ${d.launches} · Missions: ${d.missions} · Stickers: ${d.stickers.length} · Level up/down: ${d.levelUp}/${d.levelDown} · Counting to ${d.seqLen}`;
     wrap.appendChild(line);
 
     const addGrid = (title, dir, pairs) => {
@@ -267,18 +266,30 @@ export const ui = {
     }
   },
 
-  // Press-and-hold the top-left corner for 3s.
-  initParentZone(onOpen) {
-    const zone = this.els.parentZone;
-    let timer = null;
-    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
-    zone.addEventListener('pointerdown', (e) => {
+  // Visible ⚙️: instant click with a mouse (Theo doesn't use one), but on a
+  // touchscreen it takes a 2s hold — a progress ring fills — so screen
+  // mashing can't open it.
+  initParentButton(onOpen) {
+    const btn = this.els.parentBtn;
+    let raf = null;
+    const cancel = () => {
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      btn.style.removeProperty('--hold');
+    };
+    btn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
+      if (e.pointerType === 'mouse') { onOpen(); return; }
       cancel();
-      timer = setTimeout(() => { timer = null; onOpen(); }, 3000);
+      const start = performance.now();
+      const step = () => {
+        const p = (performance.now() - start) / 2000;
+        btn.style.setProperty('--hold', Math.min(1, p));
+        if (p >= 1) { cancel(); onOpen(); } else { raf = requestAnimationFrame(step); }
+      };
+      raf = requestAnimationFrame(step);
     });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
-      zone.addEventListener(ev, cancel);
+      btn.addEventListener(ev, cancel);
     }
   },
 };

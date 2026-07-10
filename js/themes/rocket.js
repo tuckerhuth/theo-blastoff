@@ -15,12 +15,14 @@ export const NUMBER_COLORS = {
 
 const SVG = 'http://www.w3.org/2000/svg';
 const BAND_H = 41;            // build band height in scene units
-const GROUND_Y = 640;         // rocket base line
-let svg, rocket, flame, astro, hatch, arrowEl, padMark, walkerG, walkerText;
+const GROUND_Y = 560;         // rocket base line — raised so the tile tray
+                              // sits on the tarmac below instead of over the scene
+let svg, rocket, flame, astro, hatch, arrowEl, padMark, walkerG, walkerText, railL, railR;
 const slots = {};
 const bands = [];             // band groups, index 0 = bottom band
 let revealed = 0;
 let masked = false;
+const saidNums = new Set();   // counted this phase — readable in masked mode
 let smokeTimer = null;
 
 function el(name, attrs = {}, parent) {
@@ -50,10 +52,13 @@ function toScreen(x, y) {
   return { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f };
 }
 
+// Masked mode: a numeral is readable only after Theo has counted it in the
+// current phase. Numbers ahead in the direction of travel are dots, and the
+// slate wipes when the direction flips (build → countdown) — the tower is a
+// map and a meter, never an answer key.
 function slotText(n) {
   const g = slots[n];
-  g.querySelector('text').textContent =
-    (masked && !g.classList.contains('lit')) ? '•' : n;
+  g.querySelector('text').textContent = (!masked || saidNums.has(n)) ? n : '•';
 }
 
 export const rocketTheme = {
@@ -66,7 +71,9 @@ export const rocketTheme = {
     // On narrow portrait screens, crop the scene toward the rocket so the
     // star of the show never falls off the edge.
     const fitView = () => {
-      svg.setAttribute('viewBox', innerWidth / innerHeight < 0.72 ? '280 0 660 700' : '0 0 1000 700');
+      // portrait-ish (incl. iPad 3:4): crop toward the rocket so it never
+      // gets clipped at the right edge
+      svg.setAttribute('viewBox', innerWidth / innerHeight < 0.85 ? '280 0 660 700' : '0 0 1000 700');
     };
     fitView();
     window.addEventListener('resize', fitView);
@@ -85,7 +92,7 @@ export const rocketTheme = {
       .slot.lit text { fill: #fff; }
       #walkerText.walking { animation: bob .28s ease-in-out infinite alternate; }
       @keyframes bob { to { transform: translateY(-7px); } }
-      #flame { transform-origin: 690px 636px; }
+      #flame { transform-origin: 690px 556px; }
       #flame.on { animation: flick .09s linear infinite alternate; }
       @keyframes flick { from { transform: scaleY(1) scaleX(1); } to { transform: scaleY(1.25) scaleX(.88); } }
       #rocket.rumbling { animation: rshake .12s linear infinite; }
@@ -111,19 +118,21 @@ export const rocketTheme = {
     const planet = el('text', { x: 880, y: 130, 'font-size': 58, 'text-anchor': 'middle' }, svg);
     planet.textContent = '🪐';
 
-    // ground + pad
-    el('rect', { x: -50, y: 645, width: 1100, height: 70, fill: '#171040' }, svg);
-    el('ellipse', { cx: 220, cy: 662, rx: 60, ry: 9, fill: '#221a52' }, svg);
-    el('ellipse', { cx: 900, cy: 676, rx: 80, ry: 11, fill: '#221a52' }, svg);
-    el('rect', { x: 560, y: 640, width: 14, height: 24, fill: '#2b2b5e' }, svg);
-    el('rect', { x: 806, y: 640, width: 14, height: 24, fill: '#2b2b5e' }, svg);
-    el('rect', { x: 545, y: 622, width: 290, height: 20, rx: 8, fill: '#3a3f77' }, svg);
-    padMark = el('rect', { x: 685, y: 640, width: 10, height: 4, fill: 'none' }, svg); // smoke emitter marker
+    // ground + pad — the tall tarmac band below the horizon is where the
+    // tile tray lives, so tiles never cover the rocket or tower
+    el('rect', { x: -50, y: 560, width: 1100, height: 155, fill: '#171040' }, svg);
+    el('rect', { x: -50, y: 560, width: 1100, height: 5, fill: '#2e336e' }, svg); // horizon edge
+    el('ellipse', { cx: 220, cy: 618, rx: 60, ry: 9, fill: '#221a52' }, svg);
+    el('ellipse', { cx: 900, cy: 645, rx: 80, ry: 11, fill: '#221a52' }, svg);
+    el('rect', { x: 560, y: 560, width: 14, height: 24, fill: '#2b2b5e' }, svg);
+    el('rect', { x: 806, y: 560, width: 14, height: 24, fill: '#2b2b5e' }, svg);
+    el('rect', { x: 545, y: 542, width: 290, height: 20, rx: 8, fill: '#3a3f77' }, svg);
+    padMark = el('rect', { x: 685, y: 560, width: 10, height: 4, fill: 'none' }, svg); // smoke emitter marker
 
     // gantry tower with the 1–10 number board — raised high so the tile
     // tray can never cover it, on any screen shape
-    el('rect', { x: 400, y: 185, width: 10, height: 455, fill: '#3a3f77' }, svg);
-    el('rect', { x: 462, y: 185, width: 10, height: 455, fill: '#3a3f77' }, svg);
+    railL = el('rect', { x: 400, y: 185, width: 10, height: 375, fill: '#3a3f77' }, svg);
+    railR = el('rect', { x: 462, y: 185, width: 10, height: 375, fill: '#3a3f77' }, svg);
     for (let n = 1; n <= 10; n++) {
       const y = 482 - (n - 1) * 30;
       const g = el('g', { class: 'slot', id: `slot${n}` }, svg);
@@ -136,21 +145,21 @@ export const rocketTheme = {
 
     // the rocket art — defined once, rendered through 10 build bands
     const art = el('g', { id: 'rocketArt' }, defs);
-    el('path', { d: 'M632,560 L632,642 L570,672 Z', fill: '#e04848' }, art);      // left fin
-    el('path', { d: 'M748,560 L748,642 L810,672 Z', fill: '#e04848' }, art);      // right fin
-    el('rect', { x: 630, y: 352, width: 120, height: 262, rx: 24, fill: 'url(#bodyGrad)' }, art); // body
-    el('path', { d: 'M655,614 L725,614 L713,638 L667,638 Z', fill: '#6a719e' }, art); // nozzle
-    el('rect', { x: 630, y: 572, width: 120, height: 20, fill: '#ff5a5a' }, art);  // stripe
-    el('path', { d: 'M630,368 C630,302 660,254 690,232 C720,254 750,302 750,368 Z', fill: '#ff5a5a' }, art); // nose
-    el('circle', { cx: 690, cy: 428, r: 36, fill: '#a8e1ff', stroke: '#39406e', 'stroke-width': 9 }, art); // window
-    astro = el('text', { x: 690, y: 443, 'font-size': 46, 'text-anchor': 'middle', opacity: 0 }, art);
+    el('path', { d: 'M632,480 L632,562 L570,592 Z', fill: '#e04848' }, art);      // left fin
+    el('path', { d: 'M748,480 L748,562 L810,592 Z', fill: '#e04848' }, art);      // right fin
+    el('rect', { x: 630, y: 272, width: 120, height: 262, rx: 24, fill: 'url(#bodyGrad)' }, art); // body
+    el('path', { d: 'M655,534 L725,534 L713,558 L667,558 Z', fill: '#6a719e' }, art); // nozzle
+    el('rect', { x: 630, y: 492, width: 120, height: 20, fill: '#ff5a5a' }, art);  // stripe
+    el('path', { d: 'M630,288 C630,222 660,174 690,152 C720,174 750,222 750,288 Z', fill: '#ff5a5a' }, art); // nose
+    el('circle', { cx: 690, cy: 348, r: 36, fill: '#a8e1ff', stroke: '#39406e', 'stroke-width': 9 }, art); // window
+    astro = el('text', { x: 690, y: 363, 'font-size': 46, 'text-anchor': 'middle', opacity: 0 }, art);
     astro.textContent = '👨‍🚀';
-    hatch = el('circle', { cx: 690, cy: 528, r: 28, fill: '#39406e', stroke: '#dfe4f5', 'stroke-width': 7 }, art);
+    hatch = el('circle', { cx: 690, cy: 448, r: 28, fill: '#39406e', stroke: '#dfe4f5', 'stroke-width': 7 }, art);
 
     rocket = el('g', { id: 'rocket' }, svg);
     flame = el('g', { id: 'flame', opacity: 0 }, rocket);
-    el('path', { d: 'M663,636 C663,692 678,716 690,738 C702,716 717,692 717,636 Z', fill: 'url(#flameGrad)' }, flame);
-    el('path', { d: 'M676,636 C676,672 684,690 690,702 C696,690 704,672 704,636 Z', fill: '#fff3b8' }, flame);
+    el('path', { d: 'M663,556 C663,612 678,636 690,658 C702,636 717,612 717,556 Z', fill: 'url(#flameGrad)' }, flame);
+    el('path', { d: 'M676,556 C676,592 684,610 690,622 C696,610 704,592 704,556 Z', fill: '#fff3b8' }, flame);
 
     bands.length = 0;
     for (let i = 1; i <= 10; i++) {
@@ -186,6 +195,7 @@ export const rocketTheme = {
     walkerG.setAttribute('opacity', 0);
     walkerG.getAnimations().forEach(a => a.cancel());
     walkerText.classList.remove('walking');
+    saidNums.clear();
     revealed = empty ? 0 : 10;
     bands.forEach((b, i) => {
       b.getAnimations().forEach(a => a.cancel());
@@ -193,6 +203,7 @@ export const rocketTheme = {
       b.style.opacity = i < revealed ? 1 : 0;
     });
     for (let n = 1; n <= 10; n++) this.light(n, false);
+    this.setRange(10);
     this.setDirection(null);
     this.stopSmoke();
   },
@@ -200,6 +211,18 @@ export const rocketTheme = {
   setMasked(m) {
     masked = m;
     for (let n = 1; n <= 10; n++) slotText(n);
+  },
+
+  // The tower is exactly as tall as the number we're counting to — no dead
+  // slots above. Rails and arrow shrink to fit.
+  setRange(len) {
+    const top = 482 - (len - 1) * 30; // y of the highest visible slot
+    for (let n = 1; n <= 10; n++) slots[n].style.display = n <= len ? '' : 'none';
+    for (const r of [railL, railR]) {
+      r.setAttribute('y', top - 22);
+      r.setAttribute('height', GROUND_Y - (top - 22));
+    }
+    arrowEl.setAttribute('y', top - 34);
   },
 
   setDirection(dir) {
@@ -211,7 +234,7 @@ export const rocketTheme = {
     if (!g) return;
     g.classList.toggle('lit', on);
     g.querySelector('rect').style.fill = on ? NUMBER_COLORS[n] : '';
-    slotText(n); // lit slots always show their number, even in masked mode
+    slotText(n);
   },
 
   // Count n of len: a numbered crate flies to the top of the stack, then the
@@ -227,11 +250,12 @@ export const rocketTheme = {
 
     const crate = g.animate([
       { transform: `translate(690px, 810px) scale(1) rotate(0deg)`, opacity: 1 },
-      { transform: `translate(556px, ${Math.min(stackTopY, 620)}px) scale(0.95) rotate(-12deg)`, opacity: 1, offset: 0.45 },
+      { transform: `translate(556px, ${Math.min(stackTopY, GROUND_Y - 20)}px) scale(0.95) rotate(-12deg)`, opacity: 1, offset: 0.45 },
       { transform: `translate(690px, ${stackTopY - 16}px) scale(0.25) rotate(4deg)`, opacity: 0.7 },
     ], { duration: 700, easing: 'cubic-bezier(.45,.1,.5,1)', fill: 'forwards' });
     await settled(crate, 950);
     g.remove();
+    saidNums.add(n); // he just counted it — readable even in masked mode
     this.light(n, true);
 
     // reveal the new chunk(s)
@@ -259,15 +283,15 @@ export const rocketTheme = {
     walkerG.setAttribute('opacity', 1);
     walkerText.classList.add('walking');
     const walk = walkerG.animate([
-      { transform: 'translate(446px, 662px)' },
-      { transform: 'translate(690px, 662px)' },
+      { transform: 'translate(446px, 582px)' },
+      { transform: 'translate(690px, 582px)' },
     ], { duration: 1900, easing: 'linear', fill: 'forwards' });
     await settled(walk, 2200);
 
     walkerText.classList.remove('walking');
     const climb = walkerG.animate([
-      { transform: 'translate(690px, 662px) scale(1)', opacity: 1 },
-      { transform: 'translate(690px, 532px) scale(0.4)', opacity: 0 },
+      { transform: 'translate(690px, 582px) scale(1)', opacity: 1 },
+      { transform: 'translate(690px, 452px) scale(0.4)', opacity: 0 },
     ], { duration: 750, easing: 'ease-in', fill: 'forwards' });
     await settled(climb, 1000);
 
@@ -280,6 +304,9 @@ export const rocketTheme = {
   },
 
   preCountdown(len) {
+    // Direction flips: nothing has been said counting DOWN yet, so in masked
+    // mode the lit stack is colored dots — a draining meter, not an answer key.
+    saidNums.clear();
     for (let n = 1; n <= 10; n++) this.light(n, n <= len);
     this.setDirection('down');
     rocket.classList.add('rumbling');
@@ -288,6 +315,7 @@ export const rocketTheme = {
 
   // n just got counted; intensity grows as we approach 1.
   tickCountdown(n, len) {
+    saidNums.add(n); // said it — its numeral appears and persists
     this.light(n, false);
     const x = (len - n + 1) / len;
     rocket.style.setProperty('--amp', `${(0.6 + x * 2.6).toFixed(2)}px`);
