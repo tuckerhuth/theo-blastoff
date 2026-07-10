@@ -92,9 +92,9 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
         clearTargets();
         // Advance the voice expectation provisionally so a number spoken in
         // the gap before the next step arms still lands (tap 3, say "four").
-        // The provisional comes from the PHASE PLAN: at the last build step
-        // it is already the countdown's start with direction flipped, so
-        // "ten!" shouted the instant the build completes queues correctly.
+        // Only WITHIN a phase — the last step passes no provisional, so the
+        // expectation (and queue) clears at a phase boundary and the next
+        // phase starts fresh (the countdown anchor asks, never auto-fires).
         if (provisionalNext) voiceExpect(provisionalNext.n, null, provisionalNext.dir);
         else voiceClearExpect();
         ui.ghostHide();
@@ -221,11 +221,13 @@ async function runRound({ tutorial = false } = {}) {
   theme.setMasked(planUp.masked);
   theme.setDirection('up');
   speak(tutorial ? ['hello'] : (sessionStars === 0 ? ['hello', 'countup'] : ['countup']), { gap: 0.15 });
-  // nextPhase: the last build answer's provisional expectation is already
-  // the countdown's start ("ten", counting DOWN) — a "ten!" shouted the
-  // instant the build completes queues through boarding and the intro.
-  const upStats = await runPhase('up', planUp,
-    { tutorial, nextPhase: { n: planDown.len, dir: -1 } });
+  // No cross-phase carryover: the countdown must start FRESH so its anchor
+  // asks "what comes first?" and Theo says the top number. The build's last
+  // number equals the countdown's first (build to N, count down from N), so
+  // a late echo of "N" finishing the build would otherwise queue against a
+  // provisional and silently auto-fire the anchor — skipping the question.
+  // The last build step clears the expectation (and flushes the queue).
+  const upStats = await runPhase('up', planUp, { tutorial });
   sfx.chime();
   ui.clearTiles();
   ui.hideBigNum();

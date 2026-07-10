@@ -149,13 +149,21 @@ await scenario('voice chain: interim dedup + prompt contamination + digit-runs',
   // build direction) — reads as 4,5 and only the chain-extending 5 lands
   await page.evaluate(() => { window.__hear('45'); });
   if (!(await litReaches(5, 8000))) return false;
-  // BOARDING WINDOW regression: the countdown starts at 5 — say it while
-  // the astronaut is still walking, before the anchor arms (this used to
-  // vanish against a provisional "6, counting up" expectation)
+  // CARRYOVER regression: the build ends on 5 and the countdown STARTS on 5.
+  // A late echo of "five" (recognition lag from finishing the build) arrives
+  // during boarding — it must NOT carry over and auto-fire the countdown
+  // anchor. The anchor has to wait and ask "what comes first?".
+  await page.evaluate(() => { window.__hear('five'); }); // stray echo, must be ignored
+  // the countdown anchor arms as the solo big number and STAYS there
+  const t1 = Date.now(); let armed = false;
+  while (Date.now() - t1 < 12000) { s = await gameState(); if (s.bigSolo) { armed = true; break; } await sleep(300); }
+  if (!armed) return false;                       // anchor never appeared
+  await sleep(700); s = await gameState();
+  if (!s.bigSolo) return false;                   // it auto-advanced — the echo skipped the anchor
+  // now Theo actually answers the anchor, then voice carries the rest down:
+  // "5" (anchor) → "4 3" → "2 1" arriving as the single token "21" (must be
+  // read as 2,1, never twenty-one)
   await page.evaluate(() => { window.__hear('five'); });
-  await sleep(4500); // boarding + intro; the queued 5 must fire on arm
-  // then the rest of the countdown, with "2…1" arriving as the single
-  // token "21" — must be read as 2,1 and never twenty-one
   await page.evaluate(() => { window.__hear('four three'); });
   await page.evaluate(() => { window.__hear('21'); });
   return playUntilBanner(25000, false); // watch only — voice must carry it
