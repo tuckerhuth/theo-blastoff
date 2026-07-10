@@ -3,7 +3,7 @@
 const KEY = 'blastoff-theo-v1';
 
 // Shown in the parent panel; keep in lockstep with VERSION in sw.js.
-export const GAME_VERSION = 'v14';
+export const GAME_VERSION = 'v15';
 
 const DEFAULTS = {
   tutorialDone: false,

@@ -15,6 +15,9 @@ countup|Let's count up!
 countdown|Now, let's count down to blast off!
 whatnext|What comes next?
 whatfirst|What comes first?
+countingup|Counting up!
+countingdown|Counting down!
+after|What comes after
 watchme|Watch me!
 yourturn|Your turn!
 ready|Ready?

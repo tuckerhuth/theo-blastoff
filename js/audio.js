@@ -7,7 +7,8 @@ import { setVoiceMuted, noteGameSpeech } from './voice.js';
 
 const CLIPS = [
   'n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
-  'hello','countup','countdown','whatnext','whatfirst','watchme','yourturn','ready',
+  'hello','countup','countdown','whatnext','whatfirst','countingup','countingdown','after',
+  'watchme','yourturn','ready',
   'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay',
   'allaboard',
 ];

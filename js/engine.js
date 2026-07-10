@@ -26,7 +26,7 @@ let sessionStars = 0;
 
 /* ---------------- one answerable step ---------------- */
 
-function doStep({ dir, target, prev, step, ghost = false }) {
+function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null }) {
   return new Promise((resolve) => {
     let misses = 0;
     let done = false;
@@ -36,7 +36,12 @@ function doStep({ dir, target, prev, step, ghost = false }) {
     let idleT1 = null, idleT2 = null, idleT3 = null;
 
     const correctEl = () => els[solo ? 0 : step.correctIndex];
-    const promptClip = () => (solo ? numClip(target) : (prev === null ? 'whatfirst' : 'whatnext'));
+    // "Counting down! What comes after… nine." — direction context on every
+    // prompt. Speaks the PREVIOUS number, never the answer (guard-safe).
+    const dirClip = dir === 'up' ? 'countingup' : 'countingdown';
+    const promptClips = () => (solo
+      ? [numClip(target)]
+      : (prev === null ? [dirClip, 'whatfirst'] : [dirClip, 'after', numClip(prev)]));
 
     const clearIdle = () => { clearTimeout(idleT1); clearTimeout(idleT2); clearTimeout(idleT3); };
     const armIdle = () => {
@@ -44,11 +49,11 @@ function doStep({ dir, target, prev, step, ghost = false }) {
       if (ghost) return;
       idleT1 = setTimeout(() => {
         if (done) return;
-        speak([promptClip()], { skipIfBusy: true });
+        speak(promptClips(), { skipIfBusy: true });
       }, GAP_PROMPT);
       idleT2 = setTimeout(() => {
         if (done) return;
-        speak([promptClip()]);
+        speak(promptClips());
         ui.ghostBounceOver(correctEl());
       }, GAP_HINT);
       idleT3 = setTimeout(() => {
@@ -68,7 +73,11 @@ function doStep({ dir, target, prev, step, ghost = false }) {
         clearTargets();
         // Advance the voice expectation provisionally so a number spoken in
         // the gap before the next step arms still lands (tap 3, say "four").
-        voiceExpect(target + (dir === 'up' ? 1 : -1), null);
+        // The provisional comes from the PHASE PLAN: at the last build step
+        // it is already the countdown's start with direction flipped, so
+        // "ten!" shouted the instant the build completes queues correctly.
+        if (provisionalNext) voiceExpect(provisionalNext.n, null, provisionalNext.dir);
+        else voiceClearExpect();
         ui.ghostHide();
         sfx.press();
         // No echo of the counted number — while he's counting, the game
@@ -127,7 +136,7 @@ function doStep({ dir, target, prev, step, ghost = false }) {
 
 /* ---------------- a phase: count up or down ---------------- */
 
-async function runPhase(dir, plan, { tutorial = false } = {}) {
+async function runPhase(dir, plan, { tutorial = false, nextPhase = null } = {}) {
   const seq = makeSequence(dir, plan.len);
   const stats = { steps: 0, firstTry: 0 };
   const anims = []; // fire-and-forget visuals; the phase end waits for all
@@ -141,7 +150,10 @@ async function runPhase(dir, plan, { tutorial = false } = {}) {
     const step = makeStep({ dir, target, prev, level });
     const ghost = tutorial && idx === 0;
 
-    const firstTry = await doStep({ dir, target, prev, step, ghost });
+    const provisionalNext = idx < seq.length - 1
+      ? { n: seq[idx + 1], dir: dir === 'up' ? 1 : -1 }
+      : nextPhase;
+    const firstTry = await doStep({ dir, target, prev, step, ghost, provisionalNext });
 
     if (prev !== null && !tutorial) {
       stats.steps++;
@@ -190,7 +202,11 @@ async function runRound({ tutorial = false } = {}) {
   theme.setMasked(planUp.masked);
   theme.setDirection('up');
   speak(tutorial ? ['hello'] : (sessionStars === 0 ? ['hello', 'countup'] : ['countup']), { gap: 0.15 });
-  const upStats = await runPhase('up', planUp, { tutorial });
+  // nextPhase: the last build answer's provisional expectation is already
+  // the countdown's start ("ten", counting DOWN) — a "ten!" shouted the
+  // instant the build completes queues through boarding and the intro.
+  const upStats = await runPhase('up', planUp,
+    { tutorial, nextPhase: { n: planDown.len, dir: -1 } });
   sfx.chime();
   ui.clearTiles();
   ui.hideBigNum();

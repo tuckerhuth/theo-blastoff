@@ -131,17 +131,15 @@ await scenario('voice chain: interim dedup + countdown digit-run', async () => {
   let s = await gameState();
   while (Date.now() - t0 < 12000 && !(s.lit.length >= 3 || s.bigSolo)) { await sleep(300); s = await gameState(); }
   if (!(s.lit.length >= 3 || s.bigSolo)) return false;
-  // countdown from 3: "3…2…" arriving as the single token "32" (the "65"
-  // problem), then "one" — must be read as 3,2 and never thirty-two
-  await page.waitForFunction(() => {
-    const b = document.getElementById('bigNum');
-    return !b.classList.contains('hidden') && b.classList.contains('solo');
-  }, { timeout: 15000 });
-  await sleep(2400); // countdown intro speech; strict digits survive the mute anyway
-  await page.evaluate(() => { window.__hear('32'); });
-  await sleep(2500);
-  await page.evaluate(() => { window.__hear('one'); });
-  return playUntilBanner(20000, false); // watch only — voice must carry it
+  // BOARDING WINDOW regression: the countdown starts at 3 — say it while
+  // the astronaut is still walking, before the anchor arms (this used to
+  // vanish against a provisional "4, counting up" expectation)
+  await page.evaluate(() => { window.__hear('three'); });
+  await sleep(4500); // boarding + intro; the queued 3 must fire on arm
+  // then "2…1" arriving as the single token "21" (the "65" problem) —
+  // must be read as 2,1 and never twenty-one
+  await page.evaluate(() => { window.__hear('21'); });
+  return playUntilBanner(25000, false); // watch only — voice must carry it
 });
 
 await scenario(TOUCH ? 'gear: touch hold (0.7s no, 2.2s yes)' : 'gear: mouse click opens instantly', async () => {
