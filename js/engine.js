@@ -265,6 +265,9 @@ async function session() {
 
 function toTitle() {
   running = false;
+  sfx.rumbleStop(0.2); // never leave the rumble loop running (audible "whistle")
+  clearTargets();
+  voiceClearExpect();
   theme.reset();
   ui.hideBigNum();
   ui.clearTiles();

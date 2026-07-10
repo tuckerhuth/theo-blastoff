@@ -1,9 +1,16 @@
 // Canvas particle layer: smoke, confetti, star streaks. Screen-space,
 // sits above the SVG scene, below the UI.
+//
+// Demand-driven: the render loop runs only while something is alive and
+// stops completely when the canvas is empty — an always-on full-screen
+// rAF clear is enough sustained GPU load to spin fans on a quiet title
+// screen.
 
 let cv, cx;
 let parts = [];
 let streakUntil = 0;
+let rafId = null;
+let lastT = 0;
 
 export function initFx(canvas) {
   cv = canvas;
@@ -15,10 +22,23 @@ export function initFx(canvas) {
   };
   resize();
   window.addEventListener('resize', resize);
-  requestAnimationFrame(loop);
 }
 
-function loop() {
+function wake() {
+  if (rafId === null) {
+    lastT = 0;
+    rafId = requestAnimationFrame(loop);
+  }
+}
+
+function loop(ts) {
+  rafId = null;
+  window.__fxFrames = (window.__fxFrames || 0) + 1; // debug: frame counter
+  // Real frame delta, clamped: correct speed on 120Hz displays, no particle
+  // teleport after a background-tab stall.
+  const dt = lastT ? Math.min((ts - lastT) / 1000, 0.05) : 1 / 60;
+  lastT = ts;
+
   cx.clearRect(0, 0, innerWidth, innerHeight);
   const now = performance.now();
 
@@ -34,7 +54,6 @@ function loop() {
     });
   }
 
-  const dt = 1 / 60;
   parts = parts.filter(p => {
     p.age += dt;
     if (p.age > p.life) return false;
@@ -71,7 +90,12 @@ function loop() {
     return true;
   });
   cx.globalAlpha = 1;
-  requestAnimationFrame(loop);
+
+  // Anything left to animate? Otherwise sleep until the next spawn.
+  // (This frame already drew only survivors, so an empty canvas stays clean.)
+  if (parts.length || performance.now() < streakUntil) {
+    rafId = requestAnimationFrame(loop);
+  }
 }
 
 export function smoke(x, y, n = 6, hot = false) {
@@ -84,6 +108,7 @@ export function smoke(x, y, n = 6, hot = false) {
       r: 16 + Math.random() * 26, life: 1.8 + Math.random() * 1.4, age: 0, hot,
     });
   }
+  wake();
 }
 
 const CONFETTI_COLORS = ['#ff5a5a', '#ff9438', '#ffd94a', '#7ed957', '#3ec5ff', '#8f6bff', '#ff6bb3'];
@@ -101,6 +126,10 @@ export function confettiBurst(x, y, n = 60) {
       life: 1.8 + Math.random() * 1.2, age: 0,
     });
   }
+  wake();
 }
 
-export function starStreaks(ms) { streakUntil = performance.now() + ms; }
+export function starStreaks(ms) {
+  streakUntil = performance.now() + ms;
+  wake();
+}
