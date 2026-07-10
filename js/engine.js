@@ -78,6 +78,8 @@ function doStep({ dir, target, prev, step, ghost = false }) {
       ui.setBigNum(target, { solo: true });
       els = [ui.els.bigNum];
     } else {
+      // In countdown question mode the big numeral shows where we are, up top.
+      if (dir === 'down' && prev !== null) ui.setBigNum(prev, { solo: false });
       els = ui.showTiles(step.choices, onPick);
     }
     setTargets(els, onPick, { allowAnywhere: solo });

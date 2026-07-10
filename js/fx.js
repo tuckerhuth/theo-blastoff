@@ -43,8 +43,8 @@ function loop() {
     if (p.kind === 'smoke') {
       p.x += p.vx * dt; p.y += p.vy * dt;
       p.vy *= 0.985; p.vx *= 0.985;
-      p.r += 26 * dt;
-      cx.globalAlpha = 0.35 * (1 - t);
+      p.r += 34 * dt;
+      cx.globalAlpha = 0.5 * (1 - t);
       cx.fillStyle = p.hot && t < 0.3 ? '#ffd9a0' : '#cfd2e8';
       cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, 7); cx.fill();
     } else if (p.kind === 'confetti') {
@@ -77,11 +77,11 @@ function loop() {
 export function smoke(x, y, n = 6, hot = false) {
   for (let i = 0; i < n; i++) {
     const a = Math.PI * (0.75 + Math.random() * 1.5); // fan mostly sideways/up
-    const sp = 60 + Math.random() * 160;
+    const sp = 90 + Math.random() * 220;
     parts.push({
-      kind: 'smoke', x: x + (Math.random() - 0.5) * 30, y,
-      vx: Math.cos(a) * sp, vy: -Math.abs(Math.sin(a)) * sp * 0.4 - 20,
-      r: 8 + Math.random() * 16, life: 1.6 + Math.random() * 1.2, age: 0, hot,
+      kind: 'smoke', x: x + (Math.random() - 0.5) * 60, y,
+      vx: Math.cos(a) * sp, vy: -Math.abs(Math.sin(a)) * sp * 0.4 - 30,
+      r: 16 + Math.random() * 26, life: 1.8 + Math.random() * 1.4, age: 0, hot,
     });
   }
 }

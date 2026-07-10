@@ -21,6 +21,14 @@ function el(name, attrs = {}, parent) {
   return e;
 }
 
+// Animations pause in hidden tabs; never let game logic wait on one forever.
+function settled(anim, maxMs) {
+  return Promise.race([
+    anim.finished.catch(() => {}),
+    new Promise(r => setTimeout(r, maxMs)),
+  ]);
+}
+
 function gradient(defs, id, x2, y2, stops) {
   const g = el('linearGradient', { id, x1: 0, y1: 0, x2, y2 }, defs);
   for (const [offset, color] of stops) el('stop', { offset, 'stop-color': color }, g);
@@ -116,6 +124,7 @@ export const rocketTheme = {
 
   reset() {
     rocket.getAnimations().forEach(a => a.cancel());
+    rocket.style.transform = '';
     rocket.classList.remove('rumbling');
     rocket.style.removeProperty('--amp');
     flame.setAttribute('opacity', 0);
@@ -150,14 +159,13 @@ export const rocketTheme = {
       { transform: 'translate(690px, 528px) scale(0.1) rotate(4deg)', opacity: 0.85 },
     ], { duration: 750, easing: 'cubic-bezier(.45,.1,.5,1)', fill: 'forwards' });
 
-    return anim.finished.then(() => {
+    return settled(anim, 1000).then(() => {
       g.remove();
-      hatch.animate(
-        [{ r: 28 }, { r: 34 }, { r: 28 }],
-        { duration: 300 },
-      );
       this.light(n, true);
-    }).catch(() => g.remove());
+      try {
+        hatch.animate([{ r: '28px' }, { r: '34px' }, { r: '28px' }], { duration: 300 });
+      } catch { /* flash is decoration; the light matters */ }
+    });
   },
 
   crewReady() { astro.setAttribute('opacity', 1); },
@@ -212,9 +220,13 @@ export const rocketTheme = {
     const anim = rocket.animate([
       { transform: 'translateY(0)' },
       { transform: 'translateY(-1250px)' },
-    ], { duration: 2400, easing: 'cubic-bezier(.55,0,.85,.36)', fill: 'forwards' });
+    ], { duration: 2400, easing: 'cubic-bezier(.55,0,.85,.36)' });
 
-    await anim.finished.catch(() => {});
+    await settled(anim, 2800);
+    // Park it off-screen explicitly — WAAPI fill state is not reliable across
+    // rounds (replaced animations get dropped). reset() clears this.
+    rocket.style.transform = 'translateY(-1250px)';
+    anim.cancel();
     shakeEls.forEach(e => e.classList.remove('shake-lg'));
     this.stopSmoke();
     await new Promise(r => setTimeout(r, 500));
