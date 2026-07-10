@@ -4,6 +4,8 @@
 import { store } from './store.js';
 import { NUMBER_COLORS } from './themes/rocket.js';
 import { tileTapHandler } from './input.js';
+import { nudge } from './levels.js';
+import { voiceSupported, voiceRefresh } from './voice.js';
 
 export const STICKERS = ['🚀', '⭐', '👨‍🚀', '🪐', '🌙', '☄️', '🛸', '🌈', '🏆', '🦄', '🐉', '🦖'];
 
@@ -16,7 +18,7 @@ export const ui = {
     for (const id of ['app', 'scene', 'fx', 'tray', 'bigNum', 'stars', 'banner', 'ghost',
       'parentZone', 'title', 'titleShelf', 'ceremony', 'bigSticker', 'ceremonyShelf',
       'alldone', 'btnOneMore', 'btnAllDone', 'parent', 'parentStats', 'parentToggles',
-      'btnTutorial', 'btnReset', 'btnCloseParent', 'playHint']) {
+      'parentLevels', 'micDot', 'btnTutorial', 'btnReset', 'btnCloseParent', 'playHint']) {
       this.els[id] = $(id);
     }
     this.setStars(0);
@@ -156,8 +158,47 @@ export const ui = {
 
   openParent() {
     this.renderParentStats();
+    this.renderParentLevels();
     this.renderParentToggles();
     this.show('parent');
+  },
+
+  // Skip-ahead / ease-back steppers. Take effect next round.
+  renderParentLevels() {
+    const wrap = this.els.parentLevels;
+    wrap.replaceChildren();
+    const h = document.createElement('h3');
+    h.textContent = 'Difficulty (changes apply to the next round)';
+    wrap.appendChild(h);
+
+    const rows = [
+      ['up', 'level', 'Counting UP — level (1–4)', () => store.data.levelUp],
+      ['up', 'len', 'Counting UP — counts to (3–10)', () => store.data.seqLenUp],
+      ['down', 'level', 'Counting DOWN — level (1–4)', () => store.data.levelDown],
+      ['down', 'len', 'Counting DOWN — counts from (3–10)', () => store.data.seqLenDown],
+    ];
+    for (const [dir, what, label, value] of rows) {
+      const row = document.createElement('div');
+      row.className = 'stepper';
+      const span = document.createElement('span');
+      span.textContent = label;
+      row.appendChild(span);
+      const minus = document.createElement('button');
+      minus.textContent = '−';
+      const val = document.createElement('b');
+      val.textContent = value();
+      const plus = document.createElement('button');
+      plus.textContent = '+';
+      const bump = (delta) => () => {
+        nudge(dir, what, delta);
+        val.textContent = value();
+        this.renderParentStats();
+      };
+      minus.addEventListener('click', bump(-1));
+      plus.addEventListener('click', bump(+1));
+      row.append(minus, val, plus);
+      wrap.appendChild(row);
+    }
   },
 
   renderParentStats() {
@@ -205,7 +246,11 @@ export const ui = {
       ['voice', 'Voice (counting and prompts)'],
       ['sfx', 'Sound effects'],
       ['keyboardZones', 'Keyboard plays the game (left keys = left tile). Off = keyboard fully ignored.'],
+      ['forceMask', 'Always hide the tower numbers (harder — recall instead of recognition)'],
     ];
+    if (voiceSupported()) {
+      toggles.push(['mic', '🎤 Say the number out loud (experimental — saying the right number counts as a tap; uses the browser’s speech service)']);
+    }
     for (const [key, label] of toggles) {
       const l = document.createElement('label');
       const input = document.createElement('input');
@@ -214,6 +259,7 @@ export const ui = {
       input.addEventListener('change', () => {
         store.data.settings[key] = input.checked;
         store.save();
+        if (key === 'mic') voiceRefresh(); // ask for the mic right away
       });
       l.appendChild(input);
       l.appendChild(document.createTextNode(label));

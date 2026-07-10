@@ -52,5 +52,6 @@ gen mission   "Mission complete! You earned a sticker!"
 gen onemore   "One more launch?"
 gen alldone   "Great flying, Captain Theo! See you next time!"
 gen taptoplay "Tap to play!"
+gen allaboard "All aboard!"
 
 echo "Done. $(ls -1 *.m4a | wc -l | tr -d ' ') clips in assets/voice/"

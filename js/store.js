@@ -4,14 +4,15 @@ const KEY = 'blastoff-theo-v1';
 
 const DEFAULTS = {
   tutorialDone: false,
-  levelUp: 1, levelDown: 1,          // 0=tutorial 1=solo 2=far distractor 3=near distractor 4=three tiles
+  levelUp: 1, levelDown: 1,          // 1=far pair 2=near pair 3=triple 4=all-near triple (0=tutorial solo)
   streakUp: 0, streakDown: 0,
   seqLenUp: 5, seqLenDown: 5,        // grows to 10 with success
+  roundsAtLenUp: 0, roundsAtLenDown: 0, // 0 → new territory, tower numbers shown
   transitions: {},                   // "u:3>4" | "d:8>7" -> { ok, err }
   stickers: [],                      // earned sticker emoji, in order
   launches: 0,
   missions: 0,
-  settings: { voice: true, sfx: true, keyboardZones: true },
+  settings: { voice: true, sfx: true, keyboardZones: true, forceMask: false, mic: false },
 };
 
 function clone(o) { return JSON.parse(JSON.stringify(o)); }

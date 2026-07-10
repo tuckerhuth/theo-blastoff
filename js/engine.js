@@ -10,6 +10,7 @@ import { makeSequence, makeStep } from './tasks.js';
 import { roundPlan, afterPhase } from './levels.js';
 import { ui, STICKERS } from './ui.js';
 import { confettiBurst } from './fx.js';
+import { voiceExpect, voiceClearExpect, voiceRefresh } from './voice.js';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -54,6 +55,7 @@ function doStep({ dir, target, prev, step, ghost = false }) {
         done = true;
         clearIdle();
         clearTargets();
+        voiceClearExpect();
         ui.ghostHide();
         sfx.press();
         speak([numClip(target)]);
@@ -78,11 +80,17 @@ function doStep({ dir, target, prev, step, ghost = false }) {
       ui.setBigNum(target, { solo: true });
       els = [ui.els.bigNum];
     } else {
-      // In countdown question mode the big numeral shows where we are, up top.
-      if (dir === 'down' && prev !== null) ui.setBigNum(prev, { solo: false });
+      // The big numeral always shows the last number counted, so he can see
+      // where he is — the tray never covers it.
+      if (prev !== null) ui.setBigNum(prev, { solo: false });
       els = ui.showTiles(step.choices, onPick);
     }
     setTargets(els, onPick, { allowAnywhere: solo });
+    // Saying the right number out loud counts too (parent-toggled, additive).
+    voiceExpect(target, () => {
+      sfx.chime(); // extra sparkle: he SAID it
+      onPick(solo ? 0 : step.correctIndex);
+    });
 
     if (ghost) {
       // Tutorial demo: the ghost hand plays this step.
@@ -109,8 +117,9 @@ async function runPhase(dir, plan, { tutorial = false } = {}) {
 
   for (let idx = 0; idx < seq.length; idx++) {
     const target = seq[idx];
-    // Countdown always anchors on its first number before asking questions.
-    const level = tutorial ? 0 : (dir === 'down' && idx === 0) ? 1 : plan.level;
+    // Countdown always anchors on its first number (the "10!" ritual tap)
+    // before asking questions. Level 0 = solo.
+    const level = (tutorial || (dir === 'down' && idx === 0)) ? 0 : plan.level;
     const step = makeStep({ dir, target, prev, level });
     const ghost = tutorial && idx === 0;
 
@@ -123,9 +132,10 @@ async function runPhase(dir, plan, { tutorial = false } = {}) {
     }
 
     if (dir === 'up') {
-      const load = theme.loadCrate(target);
+      const load = theme.loadCrate(target, plan.len);
       sfx.thunk();
       await load;
+      ui.setBigNum(target, { solo: false }); // he can always see where he is
     } else {
       theme.tickCountdown(target, plan.len);
       sfx.tick(target);
@@ -143,21 +153,27 @@ async function runPhase(dir, plan, { tutorial = false } = {}) {
 /* ---------------- one round = one launch ---------------- */
 
 async function runRound({ tutorial = false } = {}) {
-  theme.reset();
+  theme.reset(true); // empty pad — counting up literally builds the rocket
   ui.hideBigNum();
-  const planUp = tutorial ? { level: 0, len: 3 } : roundPlan('up');
-  const planDown = tutorial ? { level: 0, len: 3 } : roundPlan('down');
+  const planUp = tutorial ? { level: 0, len: 3, masked: false } : roundPlan('up');
+  const planDown = tutorial ? { level: 0, len: 3, masked: false } : roundPlan('down');
 
   // BUILD — counting up
+  theme.setMasked(planUp.masked);
   theme.setDirection('up');
   await speak(tutorial ? ['hello'] : ['hello', 'countup'], { gap: 0.15 });
   const upStats = await runPhase('up', planUp, { tutorial });
-  theme.crewReady();
   sfx.chime();
   ui.clearTiles();
-  await wait(600);
+  ui.hideBigNum();
+
+  // the crew boards before the countdown
+  speak(['allaboard']);
+  sfx.steps();
+  await theme.boardCrew();
 
   // COUNTDOWN — counting down
+  theme.setMasked(planDown.masked);
   await speak(['countdown']);
   theme.preCountdown(planDown.len);
   sfx.rumbleStart();
@@ -166,6 +182,7 @@ async function runRound({ tutorial = false } = {}) {
 
   // BLAST OFF
   clearTargets();
+  voiceClearExpect();
   ui.hideBigNum();
   ui.clearTiles();
   ui.banner('BLAST OFF!', 2800);
@@ -264,6 +281,7 @@ export function initEngine(selectedTheme) {
     if (running) return;
     running = true;
     await initAudio();
+    voiceRefresh(); // start the mic if the parent enabled it
     ui.hide('title');
     session().catch(err => { console.error(err); toTitle(); });
   });

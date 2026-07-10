@@ -1,19 +1,20 @@
 // Cache-first service worker so the game works offline once visited
 // (registered only on the deployed site — see main.js).
 
-const VERSION = 'blastoff-v1';
+const VERSION = 'blastoff-v2';
 
 const PRECACHE = [
   '.',
   'index.html',
   'css/game.css',
   'js/main.js', 'js/engine.js', 'js/ui.js', 'js/input.js', 'js/audio.js',
-  'js/store.js', 'js/tasks.js', 'js/levels.js', 'js/fx.js', 'js/themes/rocket.js',
+  'js/store.js', 'js/tasks.js', 'js/levels.js', 'js/fx.js', 'js/voice.js',
+  'js/themes/rocket.js',
   'assets/fonts/fredoka-latin.woff2',
   'manifest.webmanifest',
   ...['n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
       'hello','countup','countdown','whatnext','watchme','yourturn','ready',
-      'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay']
+      'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay','allaboard']
     .map(n => `assets/voice/${n}.m4a`),
 ];
 

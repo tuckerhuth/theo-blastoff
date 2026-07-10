@@ -6,9 +6,11 @@ import { initFx } from './fx.js';
 import { initInput } from './input.js';
 import { rocketTheme } from './themes/rocket.js';
 import { initEngine } from './engine.js';
+import { initVoice } from './voice.js';
 
 store.load();
 ui.init();
+initVoice(document.getElementById('micDot'));
 initFx(ui.els.fx);
 rocketTheme.mount(ui.els.scene);
 initInput(ui.els.app);

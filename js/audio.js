@@ -3,11 +3,13 @@
 // (required by iOS Safari).
 
 import { store } from './store.js';
+import { setVoiceMuted } from './voice.js';
 
 const CLIPS = [
   'n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
   'hello','countup','countdown','whatnext','watchme','yourturn','ready',
   'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay',
+  'allaboard',
 ];
 
 let ctx = null;
@@ -56,6 +58,7 @@ export async function speak(names, { gap = 0.08, interrupt = true } = {}) {
   let cancelled = false;
   currentSpeech = { stop() { cancelled = true; sources.forEach(s => { try { s.stop(); } catch {} }); } };
   const mine = currentSpeech;
+  setVoiceMuted(true); // the mic must not hear the game count to itself
 
   for (const name of list) {
     if (cancelled) return;
@@ -73,7 +76,11 @@ export async function speak(names, { gap = 0.08, interrupt = true } = {}) {
     });
     if (gap) await new Promise(res => setTimeout(res, gap * 1000));
   }
-  if (currentSpeech === mine) currentSpeech = null;
+  if (currentSpeech === mine) {
+    currentSpeech = null;
+    // small tail: the recognizer lags real audio slightly
+    setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 350);
+  }
 }
 
 /* ---------------- synthesized SFX ---------------- */
@@ -121,6 +128,12 @@ export const sfx = {
   softNo() { // gentle "hmm" — never harsh
     tone({ freq: 300, type: 'sine', dur: 0.14, peak: 0.1 });
     tone({ freq: 250, type: 'sine', dur: 0.18, peak: 0.1, when: 0.14 });
+  },
+
+  steps(n = 7, gap = 0.27) { // little footsteps for the boarding walk
+    for (let i = 0; i < n; i++) {
+      tone({ freq: 230 + (i % 2) * 34, type: 'sine', dur: 0.05, peak: 0.07, when: i * gap });
+    }
   },
 
   chime()  {

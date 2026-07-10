@@ -151,10 +151,10 @@ body {
 
 #bigNum {
   position: absolute;
-  top: 4vh; left: 50%;
+  top: max(3vh, env(safe-area-inset-top)); left: 50%;
   transform: translateX(-50%);
   z-index: 15;
-  font-size: 24vmin;
+  font-size: 17vmin;
   font-weight: 700;
   color: #fff;
   line-height: 1;
@@ -177,11 +177,12 @@ body {
 
 /* ---------- HUD ---------- */
 
+/* stars live top-right so the persistent progress numeral owns top-center */
 #hud {
   position: absolute;
   top: max(1.5vh, env(safe-area-inset-top));
-  left: 0; right: 0;
-  display: flex; justify-content: center;
+  left: 0; right: max(2vmin, env(safe-area-inset-right));
+  display: flex; justify-content: flex-end;
   z-index: 30;
   pointer-events: none;
 }
@@ -189,6 +190,19 @@ body {
 #stars .slot { opacity: .35; }
 #stars .slot.earned { opacity: 1; animation: star-pop .6s cubic-bezier(.2,1.8,.4,1); }
 @keyframes star-pop { 30% { transform: scale(1.8) rotate(20deg); } }
+
+/* listening indicator for the experimental mic mode */
+#micDot {
+  position: absolute;
+  top: max(9vh, calc(env(safe-area-inset-top) + 7vh));
+  right: max(2vmin, env(safe-area-inset-right));
+  z-index: 30;
+  font-size: 4vmin;
+  pointer-events: none;
+  animation: mic-pulse 1.4s ease infinite;
+  filter: drop-shadow(0 .3vmin .5vmin rgba(0,0,0,.5));
+}
+@keyframes mic-pulse { 50% { opacity: .45; transform: scale(.9); } }
 
 /* ---------- banner ---------- */
 
@@ -336,6 +350,22 @@ body {
 .tcell.good { background: #1d6b45; color: #c6ffdf; }
 .tcell.warn { background: #7a5c19; color: #ffe9b0; }
 .tcell.bad  { background: #7a2530; color: #ffc9cf; }
+
+.stepper {
+  display: flex; align-items: center; gap: 10px;
+  margin: 6px 0;
+  font-size: 15px;
+}
+.stepper span { flex: 1; }
+.stepper b { min-width: 26px; text-align: center; font-size: 18px; }
+.stepper button {
+  width: 38px; height: 38px;
+  border: none; border-radius: 10px;
+  background: #4f7bff; color: #fff;
+  font-family: inherit; font-size: 22px; font-weight: 600;
+  cursor: pointer;
+}
+.stepper button:active { transform: scale(.92); }
 
 #parentToggles { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
 #parentToggles label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
