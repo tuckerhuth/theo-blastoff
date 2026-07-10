@@ -17,7 +17,7 @@ initEngine(rocketTheme);
 // Debug handle (harmless in production; handy for poking at state).
 window.__blastoff = { store, ui };
 
-// Offline support — only once deployed (dev stays cache-free).
-if ('serviceWorker' in navigator && location.hostname.endsWith('github.io')) {
+// Offline support — only once deployed (local http dev stays cache-free).
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
