@@ -117,27 +117,46 @@ await scenario('start', async () => {
 
 await scenario('full round by taps → BLAST OFF', () => playUntilBanner());
 
-await scenario('voice chain: interim dedup + countdown digit-run', async () => {
-  await fresh();
+await scenario('voice chain: interim dedup + prompt contamination + digit-runs', async () => {
+  await fresh({ seqLen: 5 });
   await tapSel('#title');
   await page.waitForSelector('.tile', { timeout: 8000 });
   await sleep(200);
+  let s = await gameState();
+  const litReaches = async (n, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms && !(s.lit.length >= n || s.bigSolo)) { await sleep(300); s = await gameState(); }
+    return s.lit.length >= n || s.bigSolo;
+  };
   // growing interim transcripts — each number must land exactly once
   await page.evaluate(() => { window.__hear('one'); });
   await page.evaluate(() => { window.__hear('one two'); });
   await page.evaluate(() => { window.__hear('one two three'); });
   // build (1..3) drains as animations catch up
-  const t0 = Date.now();
-  let s = await gameState();
-  while (Date.now() - t0 < 12000 && !(s.lit.length >= 3 || s.bigSolo)) { await sleep(300); s = await gameState(); }
-  if (!(s.lit.length >= 3 || s.bigSolo)) return false;
-  // BOARDING WINDOW regression: the countdown starts at 3 — say it while
+  if (!(await litReaches(3, 12000))) return false;
+  // the phrase-strip path only runs un-muted — wait out the game's own
+  // speech (while muted, STRICT_WORDS would accept the 4 vacuously)
+  const tMute = Date.now();
+  while (Date.now() - tMute < 10000 && await page.evaluate(() => window.__voiceMuted())) await sleep(250);
+  if (await page.evaluate(() => window.__voiceMuted())) return false;
+  // expecting 4: recognition lag merged the game's own prompt with the
+  // answer into one transcript — v15's filter killed the whole thing; the
+  // 4 inside must survive, and the echoed 3 must NOT re-land (chain guard)
+  await page.evaluate(() => { window.__hear('counting up what comes after three four'); });
+  if (!(await litReaches(4, 8000))) return false;
+  if (s.lit.length !== 4) return false; // exactly 4 — nothing double-counted
+  // expecting 5: "4 5" merged into one numeric token (the "65" problem,
+  // build direction) — reads as 4,5 and only the chain-extending 5 lands
+  await page.evaluate(() => { window.__hear('45'); });
+  if (!(await litReaches(5, 8000))) return false;
+  // BOARDING WINDOW regression: the countdown starts at 5 — say it while
   // the astronaut is still walking, before the anchor arms (this used to
-  // vanish against a provisional "4, counting up" expectation)
-  await page.evaluate(() => { window.__hear('three'); });
-  await sleep(4500); // boarding + intro; the queued 3 must fire on arm
-  // then "2…1" arriving as the single token "21" (the "65" problem) —
-  // must be read as 2,1 and never twenty-one
+  // vanish against a provisional "6, counting up" expectation)
+  await page.evaluate(() => { window.__hear('five'); });
+  await sleep(4500); // boarding + intro; the queued 5 must fire on arm
+  // then the rest of the countdown, with "2…1" arriving as the single
+  // token "21" — must be read as 2,1 and never twenty-one
+  await page.evaluate(() => { window.__hear('four three'); });
   await page.evaluate(() => { window.__hear('21'); });
   return playUntilBanner(25000, false); // watch only — voice must carry it
 });

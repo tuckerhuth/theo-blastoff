@@ -36,12 +36,14 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
     let idleT1 = null, idleT2 = null, idleT3 = null;
 
     const correctEl = () => els[solo ? 0 : step.correctIndex];
-    // "Counting down! What comes after… nine." — direction context on every
-    // prompt. Speaks the PREVIOUS number, never the answer (guard-safe).
+    // "Counting down! What comes after nine?" — direction context on every
+    // prompt. The question is one baked clip (afterN) so the sentence has
+    // natural prosody. Speaks the PREVIOUS number, never the answer
+    // (guard-safe).
     const dirClip = dir === 'up' ? 'countingup' : 'countingdown';
     const promptClips = () => (solo
       ? [numClip(target)]
-      : (prev === null ? [dirClip, 'whatfirst'] : [dirClip, 'after', numClip(prev)]));
+      : (prev === null ? [dirClip, 'whatfirst'] : [dirClip, `after${prev}`]));
 
     const clearIdle = () => { clearTimeout(idleT1); clearTimeout(idleT2); clearTimeout(idleT3); };
     const armIdle = () => {

@@ -2,7 +2,7 @@
 // (registered only on the deployed site — see main.js).
 
 // Keep in lockstep with GAME_VERSION in js/store.js.
-const VERSION = 'blastoff-v15';
+const VERSION = 'blastoff-v16';
 
 const PRECACHE = [
   '.',
@@ -14,7 +14,8 @@ const PRECACHE = [
   'assets/fonts/fredoka-latin.woff2',
   'manifest.webmanifest',
   ...['n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
-      'hello','countup','countdown','whatnext','whatfirst','countingup','countingdown','after',
+      'after1','after2','after3','after4','after5','after6','after7','after8','after9','after10',
+      'hello','countup','countdown','whatnext','whatfirst','countingup','countingdown',
       'watchme','yourturn','ready',
       'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay','allaboard']
     .map(n => `assets/voice/${n}.m4a`),

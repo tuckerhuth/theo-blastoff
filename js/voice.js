@@ -103,10 +103,12 @@ function caption(text, matched) {
 const recentGameNums = new Map();
 
 // audio.js reports every clip the game plays, so we can discount echoes.
+// afterN prompt clips ("What comes after three?") speak the previous number,
+// so they register it too.
 export function noteGameSpeech(names) {
   const now = Date.now();
   for (const name of names) {
-    const m = String(name).match(/^n(\d+)$/);
+    const m = String(name).match(/^(?:n|after)(\d+)$/);
     if (m) recentGameNums.set(+m[1], now);
   }
 }
@@ -177,16 +179,27 @@ function drainPending() {
 
 // Core of recognition handling; also reachable as window.__hear for testing.
 function hear(transcript) {
-  const tokens = (transcript || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  let tokens = (transcript || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   if (!tokens.length) return;
-  const joined = tokens.join(' ');
+  let joined = tokens.join(' ');
 
   if (!muted) {
-    // The game's own lines coming back through the speakers: never show them.
-    // (Single-word transcripts are exempt — "one" must not die because the
-    // phrase "one more launch" contains it.)
+    // The game's own lines coming back through the speakers: recognition lags
+    // real time, so a late transcript often merges the game's prompt with the
+    // child's answer ("counting up what comes after three FOUR"). Discarding
+    // the whole thing would throw the answer away — strip the game's words
+    // and process whatever is left. A multi-word transcript that is itself a
+    // fragment of a phrase is all game speech; single words are exempt from
+    // that check — "one" must not die because "one more launch" contains it.
+    let rest = ` ${joined} `;
     for (const p of GAME_PHRASES) {
-      if (joined.includes(p) || (tokens.length >= 2 && p.includes(joined))) return;
+      if (tokens.length >= 2 && p.includes(joined)) return;
+      while (rest.includes(` ${p} `)) rest = rest.replace(` ${p} `, ' ');
+    }
+    if (rest.trim() !== joined) {
+      tokens = rest.split(/[^a-z0-9]+/).filter(Boolean);
+      if (!tokens.length) return; // nothing but game speech
+      joined = tokens.join(' ');
     }
   }
 
@@ -220,9 +233,13 @@ function handleResults(e) {
   }
 }
 
-// Debug/audit hook (harmless in production): __hear('seven') simulates the
-// recognizer hearing that phrase.
-if (typeof window !== 'undefined') window.__hear = hear;
+// Debug/audit hooks (harmless in production): __hear('seven') simulates the
+// recognizer hearing that phrase; __voiceMuted lets the test gate wait for
+// the un-muted state, where the phrase-strip path (not STRICT_WORDS) runs.
+if (typeof window !== 'undefined') {
+  window.__hear = hear;
+  window.__voiceMuted = () => muted;
+}
 
 function create() {
   rec = new SR();

@@ -17,7 +17,16 @@ whatnext|What comes next?
 whatfirst|What comes first?
 countingup|Counting up!
 countingdown|Counting down!
-after|What comes after
+after1|What comes after one?
+after2|What comes after two?
+after3|What comes after three?
+after4|What comes after four?
+after5|What comes after five?
+after6|What comes after six?
+after7|What comes after seven?
+after8|What comes after eight?
+after9|What comes after nine?
+after10|What comes after ten?
 watchme|Watch me!
 yourturn|Your turn!
 ready|Ready?
