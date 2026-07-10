@@ -1,7 +1,8 @@
 // Cache-first service worker so the game works offline once visited
 // (registered only on the deployed site — see main.js).
 
-const VERSION = 'blastoff-v5';
+// Keep in lockstep with GAME_VERSION in js/store.js.
+const VERSION = 'blastoff-v6';
 
 const PRECACHE = [
   '.',

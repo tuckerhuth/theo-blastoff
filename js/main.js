@@ -22,4 +22,14 @@ window.__blastoff = { store, ui };
 // Offline support — only once deployed (local http dev stays cache-free).
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
+  // When an update finishes installing it takes control mid-session; swap to
+  // the new version immediately if we're safely on the title screen (kills
+  // the "refreshed twice too fast, still stale" race).
+  let swapped = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    const onTitle = !document.getElementById('title').classList.contains('hidden');
+    if (swapped || !onTitle) return;
+    swapped = true;
+    location.reload();
+  });
 }

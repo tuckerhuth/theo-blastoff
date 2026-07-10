@@ -2,6 +2,9 @@
 
 const KEY = 'blastoff-theo-v1';
 
+// Shown in the parent panel; keep in lockstep with VERSION in sw.js.
+export const GAME_VERSION = 'v6';
+
 const DEFAULTS = {
   tutorialDone: false,
   levelUp: 1, levelDown: 1,          // 1=far pair 2=near pair 3=triple 4=all-near triple (0=tutorial solo)

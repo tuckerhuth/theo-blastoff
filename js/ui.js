@@ -1,7 +1,7 @@
 // DOM UI: number tiles, giant countdown numeral, stars, banner, ghost hand,
 // sticker shelf, parent panel.
 
-import { store } from './store.js';
+import { store, GAME_VERSION } from './store.js';
 import { NUMBER_COLORS } from './themes/rocket.js';
 import { tileTapHandler } from './input.js';
 import { nudge } from './levels.js';
@@ -160,6 +160,8 @@ export const ui = {
     this.renderParentStats();
     this.renderParentLevels();
     this.renderParentToggles();
+    document.getElementById('parentTip').textContent =
+      `Open this panel any time with the ⚙️ (hold it on a touchscreen). Build ${GAME_VERSION}.`;
     this.show('parent');
   },
 
