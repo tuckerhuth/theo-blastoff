@@ -37,7 +37,7 @@ function doStep({ dir, target, prev, step, ghost = false }) {
       if (ghost) return;
       idleT1 = setTimeout(() => {
         if (done) return;
-        speak(solo ? [numClip(target)] : ['whatnext']);
+        speak(solo ? [numClip(target)] : [prev === null ? 'whatfirst' : 'whatnext']);
         ui.ghostBounceOver(correctEl());
       }, 6000);
       idleT2 = setTimeout(() => {
@@ -102,7 +102,7 @@ function doStep({ dir, target, prev, step, ghost = false }) {
         setTimeout(() => ui.ghostHide(), 500);
       })();
     } else {
-      if (!solo) speak(['whatnext'], { interrupt: false });
+      if (!solo) speak([prev === null ? 'whatfirst' : 'whatnext'], { interrupt: false });
       armIdle();
     }
   });

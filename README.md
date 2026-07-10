@@ -31,11 +31,11 @@ something — and the launch he loves is the reward for getting the sequence rig
   far distractor (4 vs 9) → near distractor (7 vs 8) → three tiles → three
   near tiles. One clean round moves up a level *and* stretches the counting
   range by two; a rough round steps back down.
-- **The tower is a meter, not an answer key**: from level 2, only the numbers
-  he has *already said this phase* are readable — everything ahead in the
-  direction he's counting is a dot, and the slate wipes when the direction
-  flips for the countdown. Each number he says appears and stays. (One
-  scaffolded round with visible numbers whenever the counting range grows.)
+- **The tower is a meter, not an answer key**: only the numbers he has
+  *already said this phase* are readable — everything ahead in the direction
+  he's counting is a dot, and the slate wipes when the direction flips for
+  the countdown. Each number he says appears and stays. (Parents can flip
+  "show the tower numbers" on in the ⚙️ panel as the easy mode.)
 - **Adaptive targeting**: every transition (like 8→7) is tracked. Shaky ones
   quietly get extra practice with the tempting wrong answer present.
 - **First run is a tutorial**: a ghost hand plays the first step ("Watch me!"),

@@ -245,7 +245,7 @@ export const ui = {
       ['voice', 'Voice (counting and prompts)'],
       ['sfx', 'Sound effects'],
       ['keyboardZones', 'Keyboard plays the game (left keys = left tile). Off = keyboard fully ignored.'],
-      ['forceMask', 'Always hide the tower numbers (harder — recall instead of recognition)'],
+      ['showNumbers', 'Show the tower numbers (easier — recognition instead of recall)'],
     ];
     if (voiceSupported()) {
       toggles.push(['mic', '🎤 Say the number out loud (experimental — saying the right number counts as a tap; uses the browser’s speech service)']);

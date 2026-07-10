@@ -12,7 +12,7 @@ const DEFAULTS = {
   stickers: [],                      // earned sticker emoji, in order
   launches: 0,
   missions: 0,
-  settings: { voice: true, sfx: true, keyboardZones: true, forceMask: false, mic: false },
+  settings: { voice: true, sfx: true, keyboardZones: true, showNumbers: false, mic: false },
 };
 
 function clone(o) { return JSON.parse(JSON.stringify(o)); }

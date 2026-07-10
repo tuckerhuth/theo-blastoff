@@ -10,9 +10,9 @@
 // A clean phase promotes its direction's level; the range stretches +2 only
 // when BOTH halves of the round were clean. A rough phase (<50% first-try)
 // steps its level back down — and if there's no level left to give, the
-// range shrinks. New counting territory always gets one scaffolded round
-// with the tower numbers visible; from level 2 the tower masks (see
-// roundPlan) so it's a meter, never an answer key.
+// range shrinks. The tower is always masked outside the tutorial (numbers
+// appear as they're counted); "show numbers" in the parent panel is the
+// opt-in easy mode.
 
 import { store } from './store.js';
 
@@ -26,8 +26,9 @@ function levelField(dir) { return dir === 'up' ? 'levelUp' : 'levelDown'; }
 export function roundPlan(dir) {
   const d = store.data;
   const level = d[levelField(dir)];
-  const firstAtLen = (d.roundsAtLen || 0) === 0;
-  const masked = d.settings.forceMask || level >= 3 || (level >= 2 && !firstAtLen);
+  // Masked is the default, always — the tower must never be an answer key.
+  // Parents can flip "show numbers" on as the opt-in easy mode.
+  const masked = !d.settings.showNumbers;
   return { level, len: d.seqLen, masked };
 }
 

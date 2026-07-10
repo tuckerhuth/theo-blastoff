@@ -1,7 +1,7 @@
 // Cache-first service worker so the game works offline once visited
 // (registered only on the deployed site — see main.js).
 
-const VERSION = 'blastoff-v4';
+const VERSION = 'blastoff-v5';
 
 const PRECACHE = [
   '.',
@@ -13,7 +13,7 @@ const PRECACHE = [
   'assets/fonts/fredoka-latin.woff2',
   'manifest.webmanifest',
   ...['n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
-      'hello','countup','countdown','whatnext','watchme','yourturn','ready',
+      'hello','countup','countdown','whatnext','whatfirst','watchme','yourturn','ready',
       'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay','allaboard']
     .map(n => `assets/voice/${n}.m4a`),
 ];
