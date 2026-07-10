@@ -54,7 +54,14 @@ export function afterRound(accUp, accDown) {
   d.roundsAtLen = (d.roundsAtLen || 0) + 1;
   if (accUp >= 0.99 && accDown >= 0.99 && d.seqLen < MAX_LEN) {
     d.seqLen = Math.min(MAX_LEN, d.seqLen + 2);
-    d.roundsAtLen = 0; // new territory → next round shows the tower numbers
+    d.roundsAtLen = 0;
+  }
+  // Late levels get the real thing: once both directions are at level 3+,
+  // the round counts to a full 10 — a rocket counts down from TEN, and
+  // grinding at 9 waiting for a perfectly clean all-near round feels broken.
+  if (d.levelUp >= 3 && d.levelDown >= 3 && d.seqLen < MAX_LEN) {
+    d.seqLen = MAX_LEN;
+    d.roundsAtLen = 0;
   }
   store.save();
 }

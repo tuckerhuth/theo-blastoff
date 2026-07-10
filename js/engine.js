@@ -71,10 +71,10 @@ function doStep({ dir, target, prev, step, ghost = false }) {
         voiceExpect(target + (dir === 'up' ? 1 : -1), null);
         ui.ghostHide();
         sfx.press();
-        // During a rapid burst the game stays quiet and moves fast — the
-        // thunks/ticks carry the rhythm; echoing every number can't keep up.
+        // No echo of the counted number — while he's counting, the game
+        // stays out of the way (thunks/ticks carry the rhythm); the number
+        // is only ever spoken by the idle hints after a real gap.
         const burst = voiceQueueSize() > 0;
-        if (!burst) speak([numClip(target)]);
         const el = correctEl();
         if (el.classList.contains('tile')) ui.feedback(el, 'correct-pop');
         setTimeout(() => resolve(misses === 0), burst ? 0 : 320);
@@ -119,7 +119,7 @@ function doStep({ dir, target, prev, step, ghost = false }) {
         setTimeout(() => ui.ghostHide(), 500);
       })();
     } else {
-      if (!solo) speak([prev === null ? 'whatfirst' : 'whatnext'], { skipIfBusy: true });
+      // No prompt at arm time — the idle ladder asks only after a real gap.
       armIdle();
     }
   });

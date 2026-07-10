@@ -196,6 +196,25 @@ await scenario('keyboard mash changes nothing', async () => {
   return page.url() === before && !s.parentOpen;
 });
 
+await scenario('late levels reach a full count of 10', async () => {
+  // (Audio behavior — no arm-time prompt, no per-answer echo — is not
+  // assertable headlessly; this covers the range rule.)
+  await fresh({ levelUp: 3, levelDown: 3, seqLen: 5 });
+  await tapSel('#title');
+  const done = await playUntilBanner(60000);
+  if (!done) return false;
+  // afterRound runs only after the full launch animation + praise (~6s
+  // past the banner) — poll rather than guess the delay
+  const t0 = Date.now();
+  while (Date.now() - t0 < 15000) {
+    const seqLen = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('blastoff-theo-v1')).seqLen);
+    if (seqLen === 10) return true;
+    await sleep(500);
+  }
+  return false;
+});
+
 await scenario('state persists across reload', async () => {
   const launches = (await gameState()).launches;
   await page.reload({ waitUntil: 'load' });
