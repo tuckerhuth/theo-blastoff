@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blast Off, Theo!</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Blast Off!">
+<meta name="theme-color" content="#10143a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icons/icon-180.png">
+<link rel="icon" type="image/png" href="assets/icons/icon-192.png">
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<div id="app">
+  <div id="scene"></div>
+  <canvas id="fx"></canvas>
+
+  <div id="bigNum" class="hidden"></div>
+  <div id="tray"></div>
+
+  <div id="hud">
+    <div id="stars"></div>
+  </div>
+
+  <div id="banner" class="hidden"></div>
+  <div id="ghost" class="hidden">👆</div>
+  <div id="parentZone" aria-hidden="true"></div>
+
+  <div id="title" class="overlay">
+    <div class="title-inner">
+      <h1>Blast Off,<br>Theo!</h1>
+      <div id="playHint">TAP TO PLAY <span class="rocket-bounce">🚀</span></div>
+      <div id="titleShelf" class="shelf"></div>
+    </div>
+  </div>
+
+  <div id="ceremony" class="overlay hidden">
+    <div class="ceremony-inner">
+      <div id="bigSticker"></div>
+      <div id="ceremonyText">MISSION COMPLETE!</div>
+      <div id="ceremonyShelf" class="shelf"></div>
+    </div>
+  </div>
+
+  <div id="alldone" class="overlay hidden">
+    <div class="alldone-inner">
+      <button id="btnOneMore" class="choice-btn">🚀<span>One more!</span></button>
+      <button id="btnAllDone" class="choice-btn">👋<span>All done</span></button>
+    </div>
+  </div>
+
+  <div id="parent" class="overlay hidden">
+    <div class="parent-inner">
+      <h2>Parent Panel</h2>
+      <div id="parentStats"></div>
+      <div id="parentToggles"></div>
+      <div class="parent-actions">
+        <button id="btnTutorial">Replay tutorial</button>
+        <button id="btnReset">Reset all progress</button>
+        <button id="btnCloseParent">Close</button>
+      </div>
+      <p class="parent-tip">Open this panel any time: press and hold the top-left corner for 3 seconds.</p>
+    </div>
+  </div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

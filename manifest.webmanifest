@@ -1,0 +1,14 @@
+{
+  "name": "Blast Off, Theo!",
+  "short_name": "Blast Off!",
+  "description": "A counting game for Theo — build the rocket by counting up, count down to launch!",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b0f33",
+  "theme_color": "#10143a",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,183 @@
+// Audio: pre-baked voice clips (assets/voice/*.m4a) + synthesized sound effects.
+// Everything hangs off one AudioContext created on the first user gesture
+// (required by iOS Safari).
+
+import { store } from './store.js';
+
+const CLIPS = [
+  'n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
+  'hello','countup','countdown','whatnext','watchme','yourturn','ready',
+  'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay',
+];
+
+let ctx = null;
+let master = null;
+const buffers = new Map();
+let currentSpeech = null;   // { stop() } — so a new line can cut off the old one
+let rumbleNodes = null;
+
+export function audioReady() { return !!ctx; }
+
+// Call from inside the first tap handler.
+export async function initAudio() {
+  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain();
+  master.gain.value = 0.9;
+  master.connect(ctx.destination);
+  if (ctx.state === 'suspended') await ctx.resume();
+  // Load voice clips in the background; speak() waits per-clip as needed.
+  for (const name of CLIPS) {
+    fetch(`assets/voice/${name}.m4a`)
+      .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(ab => ctx.decodeAudioData(ab))
+      .then(buf => buffers.set(name, buf))
+      .catch(() => buffers.set(name, null)); // missing clip: speak() skips it
+  }
+}
+
+function clipReady(name) {
+  if (buffers.has(name)) return Promise.resolve();
+  return new Promise(res => {
+    const t = setInterval(() => { if (buffers.has(name)) { clearInterval(t); res(); } }, 60);
+    setTimeout(() => { clearInterval(t); res(); }, 4000); // give up quietly
+  });
+}
+
+export function numClip(n) { return `n${n}`; }
+
+// speak('whatnext') or speak(['ready','n3'], {gap:0.12}). Interrupts prior speech.
+export async function speak(names, { gap = 0.08, interrupt = true } = {}) {
+  if (!ctx || !store.data.settings.voice) return;
+  const list = Array.isArray(names) ? names : [names];
+  if (interrupt && currentSpeech) currentSpeech.stop();
+
+  const sources = [];
+  let cancelled = false;
+  currentSpeech = { stop() { cancelled = true; sources.forEach(s => { try { s.stop(); } catch {} }); } };
+  const mine = currentSpeech;
+
+  for (const name of list) {
+    if (cancelled) return;
+    await clipReady(name);
+    const buf = buffers.get(name);
+    if (!buf || cancelled) continue;
+    await new Promise(res => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(master);
+      sources.push(src);
+      src.onended = res;
+      src.start();
+      setTimeout(res, buf.duration * 1000 + 300); // safety net
+    });
+    if (gap) await new Promise(res => setTimeout(res, gap * 1000));
+  }
+  if (currentSpeech === mine) currentSpeech = null;
+}
+
+/* ---------------- synthesized SFX ---------------- */
+
+function env(node, t0, attack, peak, decay) {
+  node.gain.setValueAtTime(0, t0);
+  node.gain.linearRampToValueAtTime(peak, t0 + attack);
+  node.gain.exponentialRampToValueAtTime(0.001, t0 + attack + decay);
+}
+
+function tone({ freq, freqEnd, type = 'sine', dur = 0.2, peak = 0.2, when = 0 }) {
+  if (!ctx || !store.data.settings.sfx) return;
+  const t0 = ctx.currentTime + when;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + dur);
+  env(g, t0, 0.012, peak, dur);
+  osc.connect(g); g.connect(master);
+  osc.start(t0); osc.stop(t0 + dur + 0.1);
+}
+
+function noiseBuffer(seconds) {
+  const len = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < len; i++) {           // brown-ish noise: deeper, less hissy
+    const white = Math.random() * 2 - 1;
+    last = (last + 0.03 * white) / 1.03;
+    d[i] = last * 3.5;
+  }
+  return buf;
+}
+
+export const sfx = {
+  press()  { tone({ freq: 420, type: 'triangle', dur: 0.08, peak: 0.12 }); },
+
+  thunk()  {
+    tone({ freq: 170, freqEnd: 65, type: 'sine', dur: 0.16, peak: 0.35 });
+    tone({ freq: 900, type: 'square', dur: 0.03, peak: 0.05 });
+  },
+
+  softNo() { // gentle "hmm" — never harsh
+    tone({ freq: 300, type: 'sine', dur: 0.14, peak: 0.1 });
+    tone({ freq: 250, type: 'sine', dur: 0.18, peak: 0.1, when: 0.14 });
+  },
+
+  chime()  {
+    [523, 659, 784].forEach((f, i) => tone({ freq: f, type: 'triangle', dur: 0.45, peak: 0.14, when: i * 0.085 }));
+  },
+
+  fanfare() {
+    [392, 523, 659, 784, 1046].forEach((f, i) => tone({ freq: f, type: 'triangle', dur: 0.5, peak: 0.15, when: i * 0.11 }));
+    [523, 659, 784, 1046].forEach(f => tone({ freq: f, type: 'triangle', dur: 1.4, peak: 0.09, when: 0.62 }));
+  },
+
+  tick(n)  { // countdown tick, more tension as n approaches 1
+    const f = 500 + (10 - n) * 40;
+    tone({ freq: f, type: 'square', dur: 0.07, peak: 0.08 });
+    tone({ freq: f / 2, type: 'sine', dur: 0.12, peak: 0.12 });
+  },
+
+  whoosh() {
+    if (!ctx || !store.data.settings.sfx) return;
+    const t0 = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(1.6);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.Q.value = 0.8;
+    bp.frequency.setValueAtTime(180, t0);
+    bp.frequency.exponentialRampToValueAtTime(3200, t0 + 1.3);
+    const g = ctx.createGain();
+    env(g, t0, 0.06, 0.55, 1.45);
+    src.connect(bp); bp.connect(g); g.connect(master);
+    src.start(t0);
+  },
+
+  rumbleStart() {
+    if (!ctx || !store.data.settings.sfx || rumbleNodes) return;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(2.5);
+    src.loop = true;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 110;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    src.connect(lp); lp.connect(g); g.connect(master);
+    src.start();
+    rumbleNodes = { src, g, lp };
+  },
+
+  rumbleLevel(x) { // 0..1
+    if (!rumbleNodes) return;
+    rumbleNodes.g.gain.linearRampToValueAtTime(0.55 * x, ctx.currentTime + 0.25);
+    rumbleNodes.lp.frequency.linearRampToValueAtTime(110 + 160 * x, ctx.currentTime + 0.25);
+  },
+
+  rumbleStop(fade = 0.6) {
+    if (!rumbleNodes) return;
+    const { src, g } = rumbleNodes;
+    rumbleNodes = null;
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + fade);
+    setTimeout(() => { try { src.stop(); } catch {} }, fade * 1000 + 100);
+  },
+};
