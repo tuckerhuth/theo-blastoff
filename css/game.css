@@ -384,16 +384,30 @@ body {
 
 #parent { background: rgba(8,8,30,.9); z-index: 200; }
 .parent-inner {
+  position: relative;
   background: #1c2150;
   color: #e8eaff;
   border-radius: 20px;
   padding: 28px;
   width: min(92vw, 660px);
-  max-height: 88vh;
+  max-height: min(88vh, 88dvh);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   text-align: left;
   font-size: 16px;
   box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+#btnCloseParentX {
+  position: sticky;
+  top: 0;
+  float: right;
+  width: 40px; height: 40px;
+  border: none; border-radius: 12px;
+  background: #3a4070; color: #fff;
+  font-size: 20px; font-family: inherit;
+  cursor: pointer;
+  z-index: 2;
 }
 .parent-inner h2 { font-size: 24px; margin-bottom: 14px; }
 .parent-inner h3 { font-size: 15px; margin: 16px 0 8px; opacity: .8; font-weight: 600; }

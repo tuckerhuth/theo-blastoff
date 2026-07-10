@@ -301,6 +301,7 @@ export function initEngine(selectedTheme) {
 
   ui.initParentButton(() => ui.openParent());
   ui.els.btnCloseParent.addEventListener('click', () => ui.hide('parent'));
+  document.getElementById('btnCloseParentX').addEventListener('click', () => ui.hide('parent'));
   ui.els.btnTutorial.addEventListener('click', () => {
     store.data.tutorialDone = false;
     store.save();

@@ -66,7 +66,11 @@ export function initInput(app) {
   for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
     window.addEventListener(ev, (e) => e.preventDefault());
   }
-  document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', (e) => {
+    // the parent panel must scroll on phones — everything else stays locked
+    if (e.target instanceof Element && e.target.closest('.parent-inner')) return;
+    e.preventDefault();
+  }, { passive: false });
 
   // Focus/scrollIntoView can still scroll overflow:hidden containers.
   // Snap anything that isn't the parent panel straight back.
@@ -78,7 +82,10 @@ export function initInput(app) {
   document.addEventListener('dblclick', (e) => e.preventDefault());
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   document.addEventListener('selectstart', (e) => e.preventDefault());
-  window.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+  window.addEventListener('wheel', (e) => {
+    if (e.target instanceof Element && e.target.closest('.parent-inner')) return;
+    e.preventDefault();
+  }, { passive: false });
 
   // --- taps ---
   // Tiles call pick() via their own listeners (wired in ui.js through tapHandler).
