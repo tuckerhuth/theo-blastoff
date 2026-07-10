@@ -10,9 +10,15 @@ import { makeSequence, makeStep } from './tasks.js';
 import { roundPlan, afterPhase, afterRound } from './levels.js';
 import { ui, STICKERS } from './ui.js';
 import { confettiBurst } from './fx.js';
-import { voiceExpect, voiceClearExpect, voiceRefresh } from './voice.js';
+import { voiceExpect, voiceClearExpect, voiceRefresh, voiceQueueSize } from './voice.js';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Prompt on gap, not on arm: Theo counts in bursts, and the game only asks
+// "what comes next?" after a real silence. Escalation stays gentle.
+const GAP_PROMPT = 3500;   // speak the question
+const GAP_HINT = 7000;     // question again + ghost bounces on the answer
+const GAP_GLOW = 12000;    // answer glows + is spoken
 
 let theme = null;
 let running = false;
@@ -27,25 +33,30 @@ function doStep({ dir, target, prev, step, ghost = false }) {
     const solo = step.choices.length === 1;
     const useBigSolo = dir === 'down' && solo;
     let els;
-    let idleT1 = null, idleT2 = null;
+    let idleT1 = null, idleT2 = null, idleT3 = null;
 
     const correctEl = () => els[solo ? 0 : step.correctIndex];
+    const promptClip = () => (solo ? numClip(target) : (prev === null ? 'whatfirst' : 'whatnext'));
 
-    const clearIdle = () => { clearTimeout(idleT1); clearTimeout(idleT2); };
+    const clearIdle = () => { clearTimeout(idleT1); clearTimeout(idleT2); clearTimeout(idleT3); };
     const armIdle = () => {
       clearIdle();
       if (ghost) return;
       idleT1 = setTimeout(() => {
         if (done) return;
-        speak(solo ? [numClip(target)] : [prev === null ? 'whatfirst' : 'whatnext']);
-        ui.ghostBounceOver(correctEl());
-      }, 6000);
+        speak([promptClip()], { skipIfBusy: true });
+      }, GAP_PROMPT);
       idleT2 = setTimeout(() => {
+        if (done) return;
+        speak([promptClip()]);
+        ui.ghostBounceOver(correctEl());
+      }, GAP_HINT);
+      idleT3 = setTimeout(() => {
         if (done) return;
         ui.feedback(correctEl(), 'glow');
         els.forEach((e, j) => { if (e !== correctEl()) ui.feedback(e, 'dim'); });
         speak([numClip(target)]);
-      }, 12000);
+      }, GAP_GLOW);
     };
 
     const onPick = (i) => {
@@ -55,13 +66,18 @@ function doStep({ dir, target, prev, step, ghost = false }) {
         done = true;
         clearIdle();
         clearTargets();
-        voiceClearExpect();
+        // Advance the voice expectation provisionally so a number spoken in
+        // the gap before the next step arms still lands (tap 3, say "four").
+        voiceExpect(target + (dir === 'up' ? 1 : -1), null);
         ui.ghostHide();
         sfx.press();
-        speak([numClip(target)]);
+        // During a rapid burst the game stays quiet and moves fast — the
+        // thunks/ticks carry the rhythm; echoing every number can't keep up.
+        const burst = voiceQueueSize() > 0;
+        if (!burst) speak([numClip(target)]);
         const el = correctEl();
         if (el.classList.contains('tile')) ui.feedback(el, 'correct-pop');
-        setTimeout(() => resolve(misses === 0), 320);
+        setTimeout(() => resolve(misses === 0), burst ? 0 : 320);
       } else {
         misses++;
         sfx.softNo();
@@ -90,7 +106,7 @@ function doStep({ dir, target, prev, step, ghost = false }) {
     voiceExpect(target, () => {
       sfx.chime(); // extra sparkle: he SAID it
       onPick(solo ? 0 : step.correctIndex);
-    });
+    }, dir === 'up' ? 1 : -1);
 
     if (ghost) {
       // Tutorial demo — but taps outrank it: targets stay armed, and
@@ -114,6 +130,7 @@ function doStep({ dir, target, prev, step, ghost = false }) {
 async function runPhase(dir, plan, { tutorial = false } = {}) {
   const seq = makeSequence(dir, plan.len);
   const stats = { steps: 0, firstTry: 0 };
+  const anims = []; // fire-and-forget visuals; the phase end waits for all
   let prev = null;
 
   for (let idx = 0; idx < seq.length; idx++) {
@@ -132,22 +149,29 @@ async function runPhase(dir, plan, { tutorial = false } = {}) {
       store.recordTransition(dir, prev, target, firstTry);
     }
 
+    // Tower, anchor numeral, and sounds update at ACCEPTANCE — the truth of
+    // "where am I" never waits for an animation. Visuals run behind during a
+    // rapid burst and catch up; the phase end waits for all of them.
     if (dir === 'up') {
-      const load = theme.loadCrate(target, plan.len);
+      theme.markCounted(target);
+      ui.setBigNum(target, { solo: false });
       sfx.thunk();
-      await load;
-      ui.setBigNum(target, { solo: false }); // he can always see where he is
+      const burst = voiceQueueSize() > 0;
+      const load = theme.loadCrate(target, plan.len, burst);
+      anims.push(load);
+      if (!burst) await load; // relaxed pace keeps the old build rhythm
     } else {
       theme.tickCountdown(target, plan.len);
       sfx.tick(target);
       sfx.rumbleLevel(((plan.len - target + 1) / plan.len) * 0.75);
       if (step.choices.length > 1) ui.setBigNum(target, { solo: false });
-      await wait(280);
+      if (voiceQueueSize() === 0) await wait(280);
     }
 
     if (tutorial && idx === 0) speak(['yourturn']); // non-blocking, tappable through
     prev = target;
   }
+  await Promise.all(anims); // rocket visually complete before boarding/launch
   return stats;
 }
 

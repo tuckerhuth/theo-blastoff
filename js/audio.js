@@ -19,6 +19,7 @@ let currentSpeech = null;   // { stop() } — so a new line can cut off the old 
 let rumbleNodes = null;
 
 export function audioReady() { return !!ctx; }
+export function audioState() { return ctx ? ctx.state : 'none'; } // parent-panel health line
 
 // Call from inside the first tap handler. Never blocks: if this gesture
 // can't unlock audio (iOS accepts some gesture types and not others), the

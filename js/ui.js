@@ -5,7 +5,8 @@ import { store, GAME_VERSION } from './store.js';
 import { NUMBER_COLORS } from './themes/rocket.js';
 import { tileTapHandler } from './input.js';
 import { nudge } from './levels.js';
-import { voiceSupported, voiceRefresh } from './voice.js';
+import { voiceSupported, voiceRefresh, micStatus } from './voice.js';
+import { audioState } from './audio.js';
 
 export const STICKERS = ['🚀', '⭐', '👨‍🚀', '🪐', '🌙', '☄️', '🛸', '🌈', '🏆', '🦄', '🐉', '🦖'];
 
@@ -160,8 +161,11 @@ export const ui = {
     this.renderParentStats();
     this.renderParentLevels();
     this.renderParentToggles();
+    // Health line: makes any "broken on my phone" screenshot self-diagnosing.
+    const sw = navigator.serviceWorker?.controller ? 'on' : 'none';
     document.getElementById('parentTip').textContent =
-      `Open this panel any time with the ⚙️ (hold it on a touchscreen). Build ${GAME_VERSION}.`;
+      `Open this panel any time with the ⚙️ (hold it on a touchscreen). ` +
+      `Build ${GAME_VERSION} · sw: ${sw} · audio: ${audioState()} · mic: ${micStatus()}`;
     this.show('parent');
   },
 

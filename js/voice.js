@@ -56,6 +56,13 @@ let captionTimer = null;
 
 export function voiceSupported() { return !!SR; }
 
+// parent-panel health line
+export function micStatus() {
+  if (!SR) return 'unsupported';
+  if (!store.data.settings.micOn) return 'off';
+  return listening ? 'listening' : 'starting';
+}
+
 export function initVoice(indicatorEl, transcriptEl) {
   dotEl = indicatorEl;
   captionEl = transcriptEl;
@@ -109,67 +116,104 @@ const STRICT_WORDS = {
   1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10,
 };
 
+/* ---------------- chain counting ---------------- */
+// Theo counts in bursts ("one… two… three…" at ~1/sec). We accept every
+// number that extends the expected sequence from the current target in the
+// current direction; extras queue briefly and land as the game catches up.
+// A numeric token like "65" during a countdown at 6 expands to the digits
+// 6,5 and is accepted ONLY because it extends the chain — the same "65"
+// while counting up is noise. The chain expectation is also what dedups the
+// recognizer's growing interim transcripts ("one" → "one two" → …): numbers
+// already counted no longer match the moved expectation.
+
+let wantedDir = 1;             // +1 build, −1 countdown — drives chain validation
+const pending = [];            // numbers said ahead of the game: [{ n, t }]
+const PENDING_TTL = 4000;
+
+export function voiceQueueSize() { return pending.length; }
+
+// tokens → in-order chain-extending numbers (digit runs expanded)
+function extractChain(tokens, words) {
+  if (wanted === null) return [];
+  const accepted = [];
+  // The 12s idle hint speaks the wanted number aloud — a late echo of it
+  // must not answer the question (Theo repeating it right after is the
+  // unavoidable cost, same trade-off as the mute-window guard).
+  const hintBlocked = Date.now() - (recentGameNums.get(wanted) || 0) < 2500;
+  const expectAt = () => {
+    if (accepted.length) return accepted[accepted.length - 1] + wantedDir;
+    return pending.length ? pending[pending.length - 1].n + wantedDir : wanted;
+  };
+  for (const tok of tokens) {
+    const candidates = [];
+    if (words[tok] !== undefined) candidates.push(words[tok]);
+    else if (/^\d+$/.test(tok)) {
+      const digits = [...tok].map(Number);
+      if (digits.every((d) => d >= 1 && d <= 9)) candidates.push(...digits);
+    }
+    for (const n of candidates) {
+      if (n !== expectAt()) continue; // doesn't extend the chain → noise
+      if (n === wanted && !accepted.length && !pending.length && hintBlocked) continue;
+      accepted.push(n);
+    }
+  }
+  return accepted;
+}
+
+function drainPending() {
+  const now = Date.now();
+  while (pending.length && now - pending[0].t > PENDING_TTL) pending.shift();
+  if (wanted === null || !pending.length) return;
+  if (pending[0].n !== wanted) { pending.length = 0; return; } // derailed chain
+  if (!onMatch) return; // provisional expectation (step not armed yet) — hold
+  pending.shift();
+  const cb = onMatch;
+  wanted = null; onMatch = null;
+  cb(); // engine advances and re-arms via voiceExpect → drains the rest
+}
+
 // Core of recognition handling; also reachable as window.__hear for testing.
 function hear(transcript) {
   const tokens = (transcript || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   if (!tokens.length) return;
-
-  if (muted) {
-    // Barge-in: the child can cut the speaker off, but only with a strict
-    // utterance of the wanted number — and not while the game itself just
-    // said that number (the 12s idle hint speaks the answer aloud).
-    if (wanted === null) return;
-    if (Date.now() - (recentGameNums.get(wanted) || 0) < 3000) return;
-    for (const tok of tokens) {
-      if (STRICT_WORDS[tok] === wanted) {
-        caption(`🗣 “${tokens.join(' ')}”  → ${wanted} ✓`, true);
-        const cb = onMatch;
-        wanted = null; onMatch = null;
-        cb && cb();
-        return;
-      }
-    }
-    return; // everything else mid-speech is (mostly) the game's own voice
-  }
-
   const joined = tokens.join(' ');
 
-  // The game's own lines coming back through the speakers: never show them.
-  // (Single-word transcripts are exempt — "one" must not die because the
-  // phrase "one more launch" contains it.)
-  for (const p of GAME_PHRASES) {
-    if (joined.includes(p) || (tokens.length >= 2 && p.includes(joined))) return;
-  }
-
-  let matchedNum = null;
-  if (wanted !== null) {
-    for (const tok of tokens) {
-      if (WORDS[tok] === wanted) { matchedNum = wanted; break; }
+  if (!muted) {
+    // The game's own lines coming back through the speakers: never show them.
+    // (Single-word transcripts are exempt — "one" must not die because the
+    // phrase "one more launch" contains it.)
+    for (const p of GAME_PHRASES) {
+      if (joined.includes(p) || (tokens.length >= 2 && p.includes(joined))) return;
     }
   }
 
-  // Bare numbers the game just said (echo through the speakers): discount
-  // them — unless it's the number we're waiting for, which is always his.
-  if (matchedNum === null && tokens.length <= 3) {
+  // While the game speaks, only strict number words count ("time TO build"
+  // must never become 2) — but a clear chain still cuts through.
+  const accepted = extractChain(tokens, muted ? STRICT_WORDS : WORDS);
+  if (accepted.length) {
+    const now = Date.now();
+    for (const n of accepted) pending.push({ n, t: now });
+    caption(`🗣 “${joined}”  → ${accepted.join(', ')} ✓`, true);
+    drainPending();
+    return;
+  }
+  if (muted) return; // everything else mid-speech is (mostly) the game's voice
+
+  // Bare numbers the game just said (echo through the speakers): discount.
+  if (tokens.length <= 3) {
     const now = Date.now();
     const nums = tokens.map(t => WORDS[t]).filter(v => v !== undefined);
     if (nums.length && nums.every(n => now - (recentGameNums.get(n) || 0) < 3000)) return;
   }
 
-  caption(`🗣 “${joined}”${matchedNum !== null ? `  → ${matchedNum} ✓` : ''}`, matchedNum !== null);
-  if (matchedNum !== null) {
-    const cb = onMatch;
-    wanted = null; onMatch = null;
-    cb && cb();
-  }
+  caption(`🗣 “${joined}”`, false);
 }
 
 function handleResults(e) {
   for (let i = e.resultIndex; i < e.results.length; i++) {
-    for (const alt of e.results[i]) {
-      hear(alt.transcript);
-      if (wanted === null) return; // matched — don't double-fire
-    }
+    // best alternative only: lower-ranked alternatives re-offer the same
+    // audio and could push the chain past what was actually said
+    hear(e.results[i][0].transcript);
   }
 }
 
@@ -214,9 +258,13 @@ export function voiceRefresh() {
   }
 }
 
-// The engine registers what number would be correct right now.
-export function voiceExpect(n, cb) { wanted = n; onMatch = cb; }
-export function voiceClearExpect() { wanted = null; onMatch = null; }
+// The engine registers what number would be correct right now (and the
+// direction, so spoken chains can run ahead). Queued numbers land instantly.
+export function voiceExpect(n, cb, dir = wantedDir) {
+  wanted = n; onMatch = cb; wantedDir = dir;
+  drainPending();
+}
+export function voiceClearExpect() { wanted = null; onMatch = null; pending.length = 0; }
 
 // audio.js mutes recognition while the game's own voice is playing.
 export function setVoiceMuted(m) { muted = m; }

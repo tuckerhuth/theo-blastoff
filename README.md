@@ -105,3 +105,10 @@ calls. Themes are data (`js/themes/rocket.js`); a pirate ship or dragon is one
 new file. The sequence engine (`js/tasks.js`) is generic — letters or shapes
 can slot in later. Local dev: any static server, e.g.
 `python3 -m http.server` then open `http://localhost:8000`.
+
+**Before deploying:** `./tools/verify.sh` — runs the scenario suite on
+Chromium and WebKit (Safari's engine) at desktop and iPhone viewports
+(start, full round, voice chains via the `__hear` hook, gear semantics,
+panel scrolling, keyboard mash, persistence, error strip), and refuses if
+`sw.js`'s VERSION hasn't been bumped past the live site. One-time setup:
+`npm install && npx playwright install webkit`.

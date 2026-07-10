@@ -237,11 +237,23 @@ export const rocketTheme = {
     slotText(n);
   },
 
+  // Acceptance-time tower truth: he counted n, so n reads and lights NOW —
+  // the crate/band visuals (loadCrate) trail behind during rapid bursts.
+  markCounted(n) {
+    saidNums.add(n);
+    this.light(n, true);
+  },
+
   // Count n of len: a numbered crate flies to the top of the stack, then the
-  // next chunk(s) of rocket drop into place.
-  async loadCrate(n, len = 10) {
+  // next chunk(s) of rocket drop into place. Pure animation — tower state is
+  // markCounted()'s job. `fast` compresses timing during rapid bursts.
+  async loadCrate(n, len = 10, fast = false) {
     const targetBands = Math.round((10 * n) / len);
-    const stackTopY = GROUND_Y - BAND_H * revealed;
+    // Reserve our band range immediately — during rapid bursts several
+    // loadCrate calls overlap, and each must drop distinct chunks.
+    const from = revealed;
+    revealed = Math.max(revealed, targetBands);
+    const stackTopY = GROUND_Y - BAND_H * from;
 
     const g = el('g', {}, svg);
     el('rect', { x: -38, y: -38, width: 76, height: 76, rx: 14, fill: NUMBER_COLORS[n], stroke: 'rgba(0,0,0,.25)', 'stroke-width': 4 }, g);
@@ -252,14 +264,12 @@ export const rocketTheme = {
       { transform: `translate(690px, 810px) scale(1) rotate(0deg)`, opacity: 1 },
       { transform: `translate(556px, ${Math.min(stackTopY, GROUND_Y - 20)}px) scale(0.95) rotate(-12deg)`, opacity: 1, offset: 0.45 },
       { transform: `translate(690px, ${stackTopY - 16}px) scale(0.25) rotate(4deg)`, opacity: 0.7 },
-    ], { duration: 700, easing: 'cubic-bezier(.45,.1,.5,1)', fill: 'forwards' });
-    await settled(crate, 950);
+    ], { duration: fast ? 420 : 700, easing: 'cubic-bezier(.45,.1,.5,1)', fill: 'forwards' });
+    await settled(crate, fast ? 550 : 950);
     g.remove();
-    saidNums.add(n); // he just counted it — readable even in masked mode
-    this.light(n, true);
 
     // reveal the new chunk(s)
-    for (let i = revealed; i < targetBands; i++) {
+    for (let i = from; i < targetBands; i++) {
       const band = bands[i];
       const drop = band.animate([
         { transform: 'translateY(-64px)', opacity: 0 },
@@ -273,9 +283,8 @@ export const rocketTheme = {
         const p = toScreen(690, GROUND_Y - BAND_H * i);
         smoke(p.x, p.y, 3);
       });
-      await new Promise(r => setTimeout(r, 130));
+      await new Promise(r => setTimeout(r, fast ? 50 : 130));
     }
-    revealed = targetBands;
   },
 
   // The astronaut walks from the gantry to the rocket and climbs aboard.
