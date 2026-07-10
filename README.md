@@ -10,13 +10,15 @@ something — and the launch he loves is the reward for getting the sequence rig
 
 ## How a round works
 
-1. **Build** — numbered cargo crates load onto the rocket in order (1, 2, 3…).
-   A gantry beside the rocket is a persistent 1–10 number line that lights up
-   as he counts.
-2. **Countdown** — 10, 9, 8… each tap ticks the countdown, the engine rumble
+1. **Build** — the pad starts *empty*, and every correct answer bolts the next
+   chunk of the rocket into place (1, 2, 3…). A gantry beside the rocket is a
+   persistent 1–10 number line that lights up as he counts, and the big
+   numeral up top always shows the last number he counted.
+2. **All aboard!** — the astronaut walks out and climbs into the rocket.
+3. **Countdown** — 10, 9, 8… each tap ticks the countdown, the engine rumble
    builds, the tower lights drain downward.
-3. **BLAST OFF!** Smoke, shake, confetti, gone. Every round ends in a launch.
-4. Three launches = **Mission Complete** → he earns a sticker for his shelf.
+4. **BLAST OFF!** Smoke, shake, confetti, gone. Every round ends in a launch.
+5. Three launches = **Mission Complete** → he earns a sticker for his shelf.
 
 ## How it teaches (without you)
 
@@ -24,10 +26,14 @@ something — and the launch he loves is the reward for getting the sequence rig
   answer pulses; after three it glows while the others fade. Every round
   reaches the launch — the win is structurally guaranteed, the *difficulty*
   is what adapts.
-- **Difficulty ladder**, separate for counting up and counting down:
-  solo tile → far distractor (4 vs 9) → near distractor (7 vs 8) → three tiles.
-  Two clean rounds moves up a level; a rough round steps back down.
-  Sequences start short (1–5) and stretch to the full 1–10.
+- **Difficulty ladder**, separate for counting up and counting down (solo
+  tiles exist only in the tutorial):
+  far distractor (4 vs 9) → near distractor (7 vs 8) → three tiles → three
+  near tiles. One clean round moves up a level *and* stretches the counting
+  range by two; a rough round steps back down.
+- **Show, then hide**: the first round at any new counting range shows the
+  tower numbers; after that, at higher levels, the un-counted numbers mask to
+  dots — recognition becomes recall.
 - **Adaptive targeting**: every transition (like 8→7) is tracked. Shaky ones
   quietly get extra practice with the tempting wrong answer present.
 - **First run is a tutorial**: a ghost hand plays the first step ("Watch me!"),
@@ -39,7 +45,16 @@ something — and the launch he loves is the reward for getting the sequence rig
 
 **Press and hold the top-left corner for 3 seconds.** You'll find:
 - Per-transition first-try accuracy (spot the missing 7 healing in real time)
-- Toggles: voice, sound effects, keyboard mode
+- **Difficulty steppers** — skip ahead or ease back the level and counting
+  range for each direction (applies from the next round)
+- Toggles: voice, sound effects, keyboard mode, always-mask tower numbers,
+  and **🎤 say-it-out-loud mode** (experimental): with the mic on, saying the
+  right number counts as a tap and gets an extra chime. Tapping always still
+  works; wrong or unclear speech is simply ignored, never punished. Speech
+  goes through the browser's speech service — it's off by default, and a
+  pulsing 🎤 shows whenever the game is listening. Toddler speech recognition
+  is genuinely hit-or-miss; if it frustrates more than it delights, toggle it
+  back off.
 - Replay tutorial / reset progress
 
 ## Setup on an iPad (recommended)
