@@ -14,9 +14,30 @@ const CLIPS = [
   'allaboard',
 ];
 
+// Per-theme voice-pack overrides: clip names a theme speaks in its own
+// flavor (e.g. knight's "hello"/"blastoff" lines), stored at
+// assets/voice/<theme>/<name>.m4a. Every clip NOT listed here is shared
+// across all themes at assets/voice/<name>.m4a (numbers, afterN, etc.) —
+// listing a theme with an empty set (rocket) is a no-op, kept for symmetry.
+const PACK_OVERRIDES = {
+  rocket: new Set(),
+  knight: new Set(['hello', 'countdown', 'allaboard', 'blastoff', 'great1', 'onemore', 'alldone']),
+};
+
+let voicePack = 'rocket';
+
+// Cache key / URL for a clip name, resolved against the ACTIVE pack at call
+// time (never baked in early) — a pack switch never serves a stale voice.
+function clipKey(name) {
+  return PACK_OVERRIDES[voicePack]?.has(name) ? `${voicePack}/${name}` : name;
+}
+function clipUrl(name) {
+  return `assets/voice/${clipKey(name)}.m4a`;
+}
+
 let ctx = null;
 let master = null;
-const buffers = new Map();
+const buffers = new Map();  // keyed by clipKey(name), NOT the bare clip name
 let currentSpeech = null;   // { stop() } — so a new line can cut off the old one
 let rumbleNodes = null;
 
@@ -49,19 +70,34 @@ export async function initAudio() {
     }, { passive: true });
   }
   // Load voice clips in the background; speak() waits per-clip as needed.
-  for (const name of CLIPS) {
-    fetch(`assets/voice/${name}.m4a`)
-      .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
-      .then(ab => ctx.decodeAudioData(ab))
-      .then(buf => buffers.set(name, buf))
-      .catch(() => buffers.set(name, null)); // missing clip: speak() skips it
-  }
+  for (const name of CLIPS) loadClip(name);
+}
+
+function loadClip(name) {
+  const key = clipKey(name);
+  if (buffers.has(key)) return;
+  fetch(clipUrl(name))
+    .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+    .then(ab => ctx.decodeAudioData(ab))
+    .then(buf => buffers.set(key, buf))
+    .catch(() => buffers.set(key, null)); // missing clip: speak() skips it
+}
+
+// Called when the active theme (and its voice pack) changes at the title
+// screen. Kicks background loads for that pack's override clips that
+// aren't cached yet; shared clips are already loaded from initAudio and
+// never need re-fetching.
+export function setVoicePack(name) {
+  voicePack = name;
+  if (!ctx) return;
+  for (const clipName of PACK_OVERRIDES[voicePack] || []) loadClip(clipName);
 }
 
 function clipReady(name) {
-  if (buffers.has(name)) return Promise.resolve();
+  const key = clipKey(name);
+  if (buffers.has(key)) return Promise.resolve();
   return new Promise(res => {
-    const t = setInterval(() => { if (buffers.has(name)) { clearInterval(t); res(); } }, 60);
+    const t = setInterval(() => { if (buffers.has(key)) { clearInterval(t); res(); } }, 60);
     setTimeout(() => { clearInterval(t); res(); }, 4000); // give up quietly
   });
 }
@@ -86,7 +122,7 @@ export async function speak(names, { gap = 0.08, interrupt = true, skipIfBusy = 
   for (const name of list) {
     if (cancelled) return;
     await clipReady(name);
-    const buf = buffers.get(name);
+    const buf = buffers.get(clipKey(name));
     if (!buf || cancelled) continue;
     await new Promise(res => {
       const src = ctx.createBufferSource();

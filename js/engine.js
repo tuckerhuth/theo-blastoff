@@ -209,6 +209,7 @@ async function runPhase(dir, plan, { tutorial = false, nextPhase = null } = {}) 
 /* ---------------- one round = one launch ---------------- */
 
 async function runRound({ tutorial = false } = {}) {
+  theme.setVariant?.(sessionStars); // e.g. knight's day→night arc across a mission's 3 launches
   theme.reset(true); // empty pad — counting up literally builds the rocket
   ui.hideBigNum();
   const planUp = tutorial ? { level: 0, len: 3, masked: false } : roundPlan('up');
@@ -250,7 +251,7 @@ async function runRound({ tutorial = false } = {}) {
   voiceClearExpect();
   ui.hideBigNum();
   ui.clearTiles();
-  ui.banner('BLAST OFF!', 2800);
+  ui.banner(theme.strings?.finaleBanner ?? 'BLAST OFF!', 2800);
   speak(['blastoff']);
   sfx.rumbleLevel(1);
   sfx.whoosh();
@@ -342,6 +343,12 @@ function toTitle() {
 }
 
 /* ---------------- bootstrap ---------------- */
+
+// Swaps the active theme the engine drives. Only called at the title screen
+// (isRunning() false) — initEngine itself is never re-invoked, since its
+// title/parent listeners must bind exactly once.
+export function setTheme(t) { theme = t; }
+export function isRunning() { return running; }
 
 export function initEngine(selectedTheme) {
   theme = selectedTheme;

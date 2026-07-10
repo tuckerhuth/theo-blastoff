@@ -61,12 +61,18 @@ function slotText(n) {
   g.querySelector('text').textContent = (!masked || saidNums.has(n)) ? n : '•';
 }
 
+let mountAbort = null;
+
 export const rocketTheme = {
   name: 'rocket',
+  strings: { finaleBanner: 'BLAST OFF!' },
+  numberColors() { return NUMBER_COLORS; },
 
   mount(sceneEl) {
+    mountAbort?.abort();
+    mountAbort = new AbortController();
     sceneEl.replaceChildren();
-    svg = el('svg', { viewBox: '0 0 1000 700', preserveAspectRatio: 'xMidYMax slice' }, null);
+    svg = el('svg', { viewBox: '0 0 1000 700', preserveAspectRatio: 'xMidYMax slice', 'data-theme': 'rocket' }, null);
     sceneEl.appendChild(svg);
     // On narrow portrait screens, crop the scene toward the rocket so the
     // star of the show never falls off the edge.
@@ -76,7 +82,7 @@ export const rocketTheme = {
       svg.setAttribute('viewBox', innerWidth / innerHeight < 0.85 ? '280 0 660 700' : '0 0 1000 700');
     };
     fitView();
-    window.addEventListener('resize', fitView);
+    window.addEventListener('resize', fitView, { signal: mountAbort.signal });
 
     const defs = el('defs', {}, svg);
     gradient(defs, 'bodyGrad', 1, 0, [[0, '#ffffff'], [0.55, '#eef1fb'], [1, '#c3c9e6']]);
@@ -182,6 +188,12 @@ export const rocketTheme = {
     walkerText.textContent = '🧑‍🚀';
 
     this.reset();
+  },
+
+  unmount() {
+    mountAbort?.abort();
+    mountAbort = null;
+    this.stopSmoke();
   },
 
   reset(empty = false) {

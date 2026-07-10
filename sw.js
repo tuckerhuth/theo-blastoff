@@ -2,7 +2,7 @@
 // (registered only on the deployed site — see main.js).
 
 // Keep in lockstep with GAME_VERSION in js/store.js.
-const VERSION = 'blastoff-v22';
+const VERSION = 'blastoff-v23';
 
 const PRECACHE = [
   '.',
@@ -10,7 +10,7 @@ const PRECACHE = [
   'css/game.css',
   'js/main.js', 'js/engine.js', 'js/ui.js', 'js/input.js', 'js/audio.js',
   'js/store.js', 'js/tasks.js', 'js/levels.js', 'js/fx.js', 'js/voice.js',
-  'js/themes/rocket.js',
+  'js/themes/index.js', 'js/themes/rocket.js',
   'assets/fonts/fredoka-latin.woff2',
   'manifest.webmanifest',
   ...['n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',

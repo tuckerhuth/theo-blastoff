@@ -2,7 +2,7 @@
 // sticker shelf, parent panel.
 
 import { store, GAME_VERSION } from './store.js';
-import { NUMBER_COLORS } from './themes/rocket.js';
+import { numberColors } from './themes/index.js';
 import { tileTapHandler } from './input.js';
 import { nudge } from './levels.js';
 import { voiceSupported, voiceRefresh, micStatus } from './voice.js';
@@ -35,7 +35,7 @@ export const ui = {
       const b = document.createElement('button');
       b.className = 'tile' + (solo ? ' solo' : '');
       b.tabIndex = -1; // focus would let the browser auto-scroll the locked viewport
-      b.style.setProperty('--tile-color', NUMBER_COLORS[n]);
+      b.style.setProperty('--tile-color', numberColors()[n]);
       b.style.animationDelay = `${i * 0.07}s`;
       b.dataset.n = n;
 
@@ -76,7 +76,7 @@ export const ui = {
     b.classList.remove('hidden');
     b.classList.toggle('solo', solo);
     b.textContent = n;
-    b.style.setProperty('--big-glow', NUMBER_COLORS[n] || '#4f7bff');
+    b.style.setProperty('--big-glow', numberColors()[n] || '#4f7bff');
     b.classList.remove('tick');
     void b.offsetWidth;
     b.classList.add('tick');

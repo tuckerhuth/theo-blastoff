@@ -45,7 +45,7 @@ async function fresh(state = {}) {
   await page.evaluate(([KEY, state]) => {
     localStorage.clear();
     const base = {
-      tutorialDone: true, levelUp: 1, levelDown: 1, seqLen: 3, roundsAtLen: 1,
+      theme: 'rocket', tutorialDone: true, levelUp: 1, levelDown: 1, seqLen: 3, roundsAtLen: 1,
       transitions: {}, stickers: [], launches: 0, missions: 0,
       settings: { voice: true, sfx: true, keyboardZones: true, showNumbers: false, micOn: false },
     };
