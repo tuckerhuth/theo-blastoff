@@ -19,6 +19,7 @@ const KEY = 'blastoff-theo-v1';
 const results = [];
 const consoleErrors = [];
 const pageErrors = [];
+let bannerWord = 'BLAST'; // per-theme finale word; knight scenarios swap this to 'VICTORY'
 
 const browser = ENGINE === 'chromium'
   ? await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch())
@@ -55,10 +56,10 @@ async function fresh(state = {}) {
   await sleep(700);
 }
 
-const gameState = () => page.evaluate(() => ({
+const gameState = () => page.evaluate((word) => ({
   title: !document.getElementById('title').classList.contains('hidden'),
   banner: !document.getElementById('banner').classList.contains('hidden')
-    && document.getElementById('banner').textContent.includes('BLAST'),
+    && document.getElementById('banner').textContent.includes(word),
   tiles: [...document.querySelectorAll('.tile')].map(t => +t.dataset.n),
   lit: [...document.querySelectorAll('#scene .slot.lit')].map(s => +s.id.slice(4)),
   bigSolo: !document.getElementById('bigNum').classList.contains('hidden')
@@ -66,7 +67,7 @@ const gameState = () => page.evaluate(() => ({
   parentOpen: !document.getElementById('parent').classList.contains('hidden'),
   err: document.getElementById('errBadge').textContent,
   launches: JSON.parse(localStorage.getItem('blastoff-theo-v1') || '{}').launches ?? 0,
-}));
+}), bannerWord);
 
 // answer whatever question is currently up (the perfect-Theo heuristic)
 async function answerOnce() {
@@ -116,6 +117,72 @@ await scenario('start', async () => {
 });
 
 await scenario('full round by taps → BLAST OFF', () => playUntilBanner());
+
+await scenario('knight: full round by taps → VICTORY', async () => {
+  await fresh({ theme: 'knight' });
+  const dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
+  if (dataTheme !== 'knight') return false;
+  await tapSel('#title');
+  bannerWord = 'VICTORY';
+  try {
+    const done = await playUntilBanner();
+    if (!done) return false;
+    // launches++ runs only after the full launch animation + praise audio
+    // (~4-6s past the banner) — poll rather than guess the delay, same
+    // lesson as "late levels reach a full count of 10" below.
+    const t0 = Date.now();
+    while (Date.now() - t0 < 15000) {
+      if ((await gameState()).launches >= 1) return true;
+      await sleep(500);
+    }
+    return false;
+  } finally {
+    bannerWord = 'BLAST';
+  }
+});
+
+await scenario('theme cards: switch without starting + persistence', async () => {
+  await fresh(); // rocket
+  await tapSel('.theme-card[data-theme="knight"]');
+  await sleep(300);
+  const afterTap = await gameState();
+  if (!afterTap.title) return false; // a card tap must never start the game
+  let dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
+  if (dataTheme !== 'knight') return false;
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('blastoff-theo-v1')).theme);
+  if (stored !== 'knight') return false;
+
+  await page.reload({ waitUntil: 'load' });
+  await sleep(600);
+  dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
+  if (dataTheme !== 'knight') return false; // survived reload
+
+  await tapSel('.theme-card[data-theme="rocket"]');
+  await sleep(300);
+  dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
+  return dataTheme === 'rocket';
+});
+
+await scenario('voice theme switch at title only', async () => {
+  await fresh(); // rocket
+  await page.evaluate(() => { window.__hear('dragon'); });
+  await sleep(250);
+  let dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
+  if (dataTheme !== 'knight' || !(await gameState()).title) return false;
+
+  await page.evaluate(() => { window.__hear('rocket'); });
+  await sleep(250);
+  dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
+  if (dataTheme !== 'rocket') return false;
+
+  // mid-round: a stray "dragon" must be refused
+  await tapSel('#title');
+  await sleep(1200);
+  await page.evaluate(() => { window.__hear('dragon'); });
+  await sleep(300);
+  dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
+  return dataTheme === 'rocket';
+});
 
 await scenario('voice chain: interim dedup + prompt contamination + digit-runs', async () => {
   await fresh({ seqLen: 5 });

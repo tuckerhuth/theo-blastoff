@@ -43,6 +43,26 @@ something — and the launch he loves is the reward for getting the sequence rig
 - Rainbow colors are stable per number (7 is always blue), the tiles carry
   ten-frame dot patterns, and a recorded voice counts every tap.
 
+## Themes
+
+Two worlds so far, picked with a tap on the title screen (🚀 rocket / 🐉
+knight & dragon) or by saying "rocket", "knight", or "dragon" out loud —
+the last one picked is remembered. Knight & Dragon: counting up arms a
+knight piece by piece while a dragon torments the countryside; counting
+down lands a sword strike each number until the final blow slays it. Its
+color world shifts day → night across a mission's three launches (meadow
+→ ember → twilight).
+
+Numbers and the core prompts are shared across every theme, in whatever
+voice you've recorded; each theme can override a handful of its own
+flavor lines (greeting, countdown intro, victory, "one more?", goodbye).
+Knight's overrides currently speak in the built-in synthetic voice —
+record your own with the same tool, pointed at that theme's phrase file:
+
+```
+./tools/record_voice.sh phrases-knight.txt ../assets/voice/knight
+```
+
 ## Parent panel
 
 **The ⚙️ button, top-left.** One click with a mouse; on a touchscreen,
@@ -101,14 +121,16 @@ The phrase list for both tools lives in `tools/phrases.txt`.
 ## Tech notes
 
 Pure static HTML/CSS/JS — no build step, no framework, no runtime network
-calls. Themes are data (`js/themes/rocket.js`); a pirate ship or dragon is one
-new file. The sequence engine (`js/tasks.js`) is generic — letters or shapes
-can slot in later. Local dev: any static server, e.g.
-`python3 -m http.server` then open `http://localhost:8000`.
+calls. Themes are data (`js/themes/rocket.js`, `js/themes/knight.js`,
+registered in `js/themes/index.js`); a pirate ship or spider is one new
+file conforming to the same contract. The sequence engine (`js/tasks.js`)
+is generic — letters or shapes can slot in later. Local dev: any static
+server, e.g. `python3 -m http.server` then open `http://localhost:8000`.
 
 **Before deploying:** `./tools/verify.sh` — runs the scenario suite on
 Chromium and WebKit (Safari's engine) at desktop and iPhone viewports
-(start, full round, voice chains via the `__hear` hook, gear semantics,
-panel scrolling, keyboard mash, persistence, error strip), and refuses if
-`sw.js`'s VERSION hasn't been bumped past the live site. One-time setup:
+(start, full round per theme, theme switching by tap and by voice, voice
+chains via the `__hear` hook, gear semantics, panel scrolling, keyboard
+mash, persistence, error strip), and refuses if `sw.js`'s VERSION hasn't
+been bumped past the live site. One-time setup:
 `npm install && npx playwright install webkit`.
