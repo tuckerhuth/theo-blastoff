@@ -2,7 +2,7 @@
 // (registered only on the deployed site — see main.js).
 
 // Keep in lockstep with GAME_VERSION in js/store.js.
-const VERSION = 'blastoff-v17';
+const VERSION = 'blastoff-v18';
 
 const PRECACHE = [
   '.',

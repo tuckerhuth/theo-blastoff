@@ -39,11 +39,13 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
     // "Counting down! What comes after nine?" — direction context on every
     // prompt. The question is one baked clip (afterN) so the sentence has
     // natural prosody. Speaks the PREVIOUS number, never the answer
-    // (guard-safe).
+    // (guard-safe). The opening step of a phase — including the countdown's
+    // solo anchor on the top number — asks "what comes first?" so the child
+    // says it (e.g. "ten"), rather than the game announcing the number.
     const dirClip = dir === 'up' ? 'countingup' : 'countingdown';
-    const promptClips = () => (solo
-      ? [numClip(target)]
-      : (prev === null ? [dirClip, 'whatfirst'] : [dirClip, `after${prev}`]));
+    const promptClips = () => (prev === null
+      ? [dirClip, 'whatfirst']
+      : (solo ? [numClip(target)] : [dirClip, `after${prev}`]));
 
     const clearIdle = () => { clearTimeout(idleT1); clearTimeout(idleT2); clearTimeout(idleT3); };
     const armIdle = () => {
