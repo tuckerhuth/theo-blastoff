@@ -41,6 +41,20 @@ export function initVoice(indicatorEl, transcriptEl) {
 
 function updateDot() {
   if (dotEl) dotEl.classList.toggle('hidden', !(listening && store.data.settings.micOn));
+  refreshCaption();
+}
+
+// Steady state of the audit strip: "listening…" while the recognizer is
+// live, hidden when it isn't. No caption at all = recognition is not running.
+function refreshCaption() {
+  if (!captionEl || captionTimer) return; // a transcript is on screen — let it finish
+  if (listening && store.data.settings.micOn) {
+    captionEl.textContent = '🎤 listening…';
+    captionEl.classList.add('idle');
+    captionEl.classList.remove('match', 'hidden');
+  } else {
+    captionEl.classList.add('hidden');
+  }
 }
 
 // Parent-facing audit trail: show what the recognizer heard, briefly.
@@ -48,9 +62,9 @@ function caption(text, matched) {
   if (!captionEl) return;
   captionEl.textContent = text;
   captionEl.classList.toggle('match', !!matched);
-  captionEl.classList.remove('hidden');
+  captionEl.classList.remove('idle', 'hidden');
   clearTimeout(captionTimer);
-  captionTimer = setTimeout(() => captionEl.classList.add('hidden'), 2500);
+  captionTimer = setTimeout(() => { captionTimer = null; refreshCaption(); }, 2500);
 }
 
 // Core of recognition handling; also reachable as window.__hear for testing.
@@ -103,7 +117,10 @@ function create() {
       store.data.settings.micOn = false; // permission denied — turn the mode off
       store.save();
       listening = false;
+      caption('🎤 mic blocked — allow it in browser settings, then re-enable in ⚙️');
       updateDot();
+    } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+      caption(`🎤 speech error: ${e.error}`); // e.g. Chrome's routine 'network' hiccups
     }
   };
 }

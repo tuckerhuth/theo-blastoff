@@ -221,6 +221,7 @@ body {
   transition: opacity .3s;
 }
 #micCaption.match { color: #7ed957; font-weight: 600; }
+#micCaption.idle { opacity: .5; }
 
 /* ---------- banner ---------- */
 
