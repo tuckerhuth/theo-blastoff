@@ -15,10 +15,12 @@ import { voiceExpect, voiceClearExpect, voiceRefresh, voiceQueueSize } from './v
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
 // Prompt on gap, not on arm: Theo counts in bursts, and the game only asks
-// "what comes next?" after a real silence. Escalation stays gentle.
-const GAP_PROMPT = 3500;   // speak the question
-const GAP_HINT = 7000;     // question again + ghost bounces on the answer
-const GAP_GLOW = 12000;    // answer glows + is spoken
+// "what comes next?" after a real silence. Escalation stays gentle, and each
+// rung waits its window of SILENCE *after the previous prompt finishes
+// speaking* (not a fixed offset from arm) — so a longer spoken prompt never
+// crowds the next one back-to-back, and Theo always gets room to answer.
+const GAP_PROMPT = 3500;   // first silence before the game asks the question
+const RESPOND = 3500;      // response window (silence) after each prompt before escalating
 
 let theme = null;
 let running = false;
@@ -34,6 +36,7 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
     const useBigSolo = dir === 'down' && solo;
     let els;
     let idleT1 = null, idleT2 = null, idleT3 = null;
+    let idleGen = 0; // bumped on every clear/re-arm — invalidates in-flight async rungs
 
     const correctEl = () => els[solo ? 0 : step.correctIndex];
     // "Counting down! What comes after nine?" — direction context on every
@@ -47,25 +50,36 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
       ? [dirClip, 'whatfirst']
       : (solo ? [numClip(target)] : [dirClip, `after${prev}`]));
 
-    const clearIdle = () => { clearTimeout(idleT1); clearTimeout(idleT2); clearTimeout(idleT3); };
+    const clearIdle = () => { idleGen++; clearTimeout(idleT1); clearTimeout(idleT2); clearTimeout(idleT3); };
     const armIdle = () => {
       clearIdle();
       if (ghost) return;
-      idleT1 = setTimeout(() => {
-        if (done) return;
-        speak(promptClips(), { skipIfBusy: true });
+      // Each rung's window is silence AFTER the previous prompt finishes, so
+      // the chain is async. A wrong tap re-arms mid-speech; the `alive` token
+      // (own generation, not yet answered) stops a stale chain from resuming
+      // after its await and double-scheduling the next rung.
+      const gen = idleGen;
+      const alive = () => !done && gen === idleGen;
+      // Rung 1: after a real gap, ask the question.
+      idleT1 = setTimeout(async () => {
+        if (!alive()) return;
+        await speak(promptClips(), { skipIfBusy: true });
+        if (!alive()) return;
+        // Rung 2: a response window later, ask again + bounce the ghost.
+        idleT2 = setTimeout(async () => {
+          if (!alive()) return;
+          ui.ghostBounceOver(correctEl());
+          await speak(promptClips());
+          if (!alive()) return;
+          // Rung 3: a further window later, glow the answer and say it.
+          idleT3 = setTimeout(() => {
+            if (!alive()) return;
+            ui.feedback(correctEl(), 'glow');
+            els.forEach((e, j) => { if (e !== correctEl()) ui.feedback(e, 'dim'); });
+            speak([numClip(target)]);
+          }, RESPOND);
+        }, RESPOND);
       }, GAP_PROMPT);
-      idleT2 = setTimeout(() => {
-        if (done) return;
-        speak(promptClips());
-        ui.ghostBounceOver(correctEl());
-      }, GAP_HINT);
-      idleT3 = setTimeout(() => {
-        if (done) return;
-        ui.feedback(correctEl(), 'glow');
-        els.forEach((e, j) => { if (e !== correctEl()) ui.feedback(e, 'dim'); });
-        speak([numClip(target)]);
-      }, GAP_GLOW);
     };
 
     const onPick = (i) => {
