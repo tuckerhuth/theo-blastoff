@@ -19,6 +19,17 @@ initEngine(rocketTheme);
 // Debug handle (harmless in production; handy for poking at state).
 window.__blastoff = { store, ui };
 
+// If anything breaks on a device we can't inspect, the device itself
+// reports it: uncaught errors show in a small strip (tap to dismiss).
+function reportError(msg) {
+  const el = document.getElementById('errBadge');
+  el.textContent = `⚠️ ${msg}`;
+  el.classList.remove('hidden');
+  el.onclick = () => el.classList.add('hidden');
+}
+window.addEventListener('error', (e) => reportError(e.message || 'script error'));
+window.addEventListener('unhandledrejection', (e) => reportError(e.reason?.message || String(e.reason || 'promise error')));
+
 // Offline support — only once deployed (local http dev stays cache-free).
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

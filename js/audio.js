@@ -20,14 +20,21 @@ let rumbleNodes = null;
 
 export function audioReady() { return !!ctx; }
 
-// Call from inside the first tap handler.
+// Call from inside the first tap handler. Never blocks: if this gesture
+// can't unlock audio (iOS accepts some gesture types and not others), the
+// unlock listeners below catch the next one.
 export async function initAudio() {
-  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  if (ctx) { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); return; }
   ctx = new (window.AudioContext || window.webkitAudioContext)();
   master = ctx.createGain();
   master.gain.value = 0.9;
   master.connect(ctx.destination);
-  if (ctx.state === 'suspended') await ctx.resume();
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  for (const ev of ['touchend', 'pointerup', 'click']) {
+    window.addEventListener(ev, () => {
+      if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    }, { passive: true });
+  }
   // Load voice clips in the background; speak() waits per-clip as needed.
   for (const name of CLIPS) {
     fetch(`assets/voice/${name}.m4a`)

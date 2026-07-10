@@ -285,14 +285,19 @@ function toTitle() {
 export function initEngine(selectedTheme) {
   theme = selectedTheme;
 
-  ui.els.title.addEventListener('pointerdown', async () => {
+  // Respond instantly, never block the start on audio/mic plumbing — iOS
+  // is picky about audio-unlock gestures and a hung await here would eat
+  // every tap forever ('click' fallback in case pointerdown doesn't fire).
+  const startSession = () => {
     if (running) return;
     running = true;
-    await initAudio();
-    voiceRefresh(); // start the mic if the parent enabled it
     ui.hide('title');
+    initAudio().catch(() => {});
     session().catch(err => { console.error(err); toTitle(); });
-  });
+    setTimeout(() => voiceRefresh(), 400); // mic permission prompt after liftoff, not during the tap
+  };
+  ui.els.title.addEventListener('pointerdown', startSession);
+  ui.els.title.addEventListener('click', startSession);
 
   ui.initParentButton(() => ui.openParent());
   ui.els.btnCloseParent.addEventListener('click', () => ui.hide('parent'));

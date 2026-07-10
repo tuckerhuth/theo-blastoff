@@ -223,6 +223,21 @@ body {
 #micCaption.match { color: #7ed957; font-weight: 600; }
 #micCaption.idle { opacity: .5; }
 
+/* on-device error reporter — debugging eyes for phones we can't inspect */
+#errBadge {
+  position: absolute;
+  bottom: max(1vh, env(safe-area-inset-bottom));
+  left: 50%; transform: translateX(-50%);
+  z-index: 300;
+  max-width: 92vw;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(160, 40, 55, .92);
+  color: #fff;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- banner ---------- */
 
 #banner {
