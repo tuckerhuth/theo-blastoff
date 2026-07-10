@@ -250,7 +250,7 @@ export const ui = {
       ['showNumbers', 'Show the tower numbers (easier — recognition instead of recall)'],
     ];
     if (voiceSupported()) {
-      toggles.push(['mic', '🎤 Say the number out loud (experimental — saying the right number counts as a tap; uses the browser’s speech service)']);
+      toggles.push(['micOn', '🎤 Say the number out loud (experimental — saying the right number counts as a tap; uses the browser’s speech service)']);
     }
     for (const [key, label] of toggles) {
       const l = document.createElement('label');
@@ -260,7 +260,7 @@ export const ui = {
       input.addEventListener('change', () => {
         store.data.settings[key] = input.checked;
         store.save();
-        if (key === 'mic') voiceRefresh(); // ask for the mic right away
+        if (key === 'micOn') voiceRefresh(); // ask for the mic right away
       });
       l.appendChild(input);
       l.appendChild(document.createTextNode(label));

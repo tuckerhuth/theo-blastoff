@@ -3,7 +3,7 @@
 const KEY = 'blastoff-theo-v1';
 
 // Shown in the parent panel; keep in lockstep with VERSION in sw.js.
-export const GAME_VERSION = 'v6';
+export const GAME_VERSION = 'v7';
 
 const DEFAULTS = {
   tutorialDone: false,
@@ -15,7 +15,7 @@ const DEFAULTS = {
   stickers: [],                      // earned sticker emoji, in order
   launches: 0,
   missions: 0,
-  settings: { voice: true, sfx: true, keyboardZones: true, showNumbers: false, mic: false },
+  settings: { voice: true, sfx: true, keyboardZones: true, showNumbers: false, micOn: true },
 };
 
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -37,6 +37,7 @@ export const store = {
         }
         delete this.data.seqLenUp; delete this.data.seqLenDown;
         delete this.data.roundsAtLenUp; delete this.data.roundsAtLenDown;
+        delete this.data.settings.mic; // renamed micOn (now defaults on)
       }
     } catch { /* private mode or corrupt data — run on defaults */ }
   },

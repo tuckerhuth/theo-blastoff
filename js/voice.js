@@ -29,31 +29,61 @@ let muted = false;
 let wanted = null;
 let onMatch = null;
 let dotEl = null;
+let captionEl = null;
+let captionTimer = null;
 
 export function voiceSupported() { return !!SR; }
 
-export function initVoice(indicatorEl) { dotEl = indicatorEl; }
+export function initVoice(indicatorEl, transcriptEl) {
+  dotEl = indicatorEl;
+  captionEl = transcriptEl;
+}
 
 function updateDot() {
-  if (dotEl) dotEl.classList.toggle('hidden', !(listening && store.data.settings.mic));
+  if (dotEl) dotEl.classList.toggle('hidden', !(listening && store.data.settings.micOn));
+}
+
+// Parent-facing audit trail: show what the recognizer heard, briefly.
+function caption(text, matched) {
+  if (!captionEl) return;
+  captionEl.textContent = text;
+  captionEl.classList.toggle('match', !!matched);
+  captionEl.classList.remove('hidden');
+  clearTimeout(captionTimer);
+  captionTimer = setTimeout(() => captionEl.classList.add('hidden'), 2500);
+}
+
+// Core of recognition handling; also reachable as window.__hear for testing.
+function hear(transcript) {
+  if (muted) return; // while the game speaks, the mic hears the game — ignore
+  const tokens = (transcript || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!tokens.length) return;
+  let matchedNum = null;
+  if (wanted !== null) {
+    for (const tok of tokens) {
+      if (WORDS[tok] === wanted) { matchedNum = wanted; break; }
+    }
+  }
+  caption(`🗣 “${tokens.join(' ')}”${matchedNum !== null ? `  → ${matchedNum} ✓` : ''}`, matchedNum !== null);
+  if (matchedNum !== null) {
+    const cb = onMatch;
+    wanted = null; onMatch = null;
+    cb && cb();
+  }
 }
 
 function handleResults(e) {
-  if (muted || wanted === null) return;
   for (let i = e.resultIndex; i < e.results.length; i++) {
     for (const alt of e.results[i]) {
-      const tokens = (alt.transcript || '').toLowerCase().split(/[^a-z0-9]+/);
-      for (const tok of tokens) {
-        if (WORDS[tok] === wanted) {
-          const cb = onMatch;
-          wanted = null; onMatch = null;
-          cb && cb();
-          return;
-        }
-      }
+      hear(alt.transcript);
+      if (wanted === null) return; // matched — don't double-fire
     }
   }
 }
+
+// Debug/audit hook (harmless in production): __hear('seven') simulates the
+// recognizer hearing that phrase.
+if (typeof window !== 'undefined') window.__hear = hear;
 
 function create() {
   rec = new SR();
@@ -66,11 +96,11 @@ function create() {
   rec.onend = () => {
     listening = false; updateDot();
     // The API stops itself constantly; keep it alive while the mode is on.
-    if (store.data.settings.mic) setTimeout(() => { try { rec.start(); } catch { /* already starting */ } }, 300);
+    if (store.data.settings.micOn) setTimeout(() => { try { rec.start(); } catch { /* already starting */ } }, 300);
   };
   rec.onerror = (e) => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-      store.data.settings.mic = false; // permission denied — turn the mode off
+      store.data.settings.micOn = false; // permission denied — turn the mode off
       store.save();
       listening = false;
       updateDot();
@@ -78,10 +108,10 @@ function create() {
   };
 }
 
-// Call whenever settings.mic may have changed (toggle, session start).
+// Call whenever settings.micOn may have changed (toggle, session start).
 export function voiceRefresh() {
   if (!SR) return;
-  if (store.data.settings.mic) {
+  if (store.data.settings.micOn) {
     if (!rec) create();
     if (!listening) { try { rec.start(); } catch { /* already started */ } }
   } else if (rec && listening) {

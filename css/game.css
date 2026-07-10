@@ -204,6 +204,24 @@ body {
 }
 @keyframes mic-pulse { 50% { opacity: .45; transform: scale(.9); } }
 
+/* what the mic heard — parent-facing audit strip under the 🎤 */
+#micCaption {
+  position: absolute;
+  top: max(14vh, calc(env(safe-area-inset-top) + 12vh));
+  right: max(2vmin, env(safe-area-inset-right));
+  z-index: 30;
+  max-width: 40vw;
+  padding: .8vmin 1.6vmin;
+  border-radius: 1.4vmin;
+  background: rgba(12, 16, 50, .75);
+  color: #aab1e8;
+  font-size: 2.2vmin;
+  text-align: right;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+#micCaption.match { color: #7ed957; font-weight: 600; }
+
 /* ---------- banner ---------- */
 
 #banner {

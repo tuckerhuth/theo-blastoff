@@ -10,7 +10,7 @@ import { initVoice } from './voice.js';
 
 store.load();
 ui.init();
-initVoice(document.getElementById('micDot'));
+initVoice(document.getElementById('micDot'), document.getElementById('micCaption'));
 initFx(ui.els.fx);
 rocketTheme.mount(ui.els.scene);
 initInput(ui.els.app);
