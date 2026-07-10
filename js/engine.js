@@ -4,7 +4,7 @@
 // answer more obvious, so every round ends at BLAST OFF.
 
 import { store } from './store.js';
-import { initAudio, speak, numClip, sfx } from './audio.js';
+import { initAudio, speak, hushSpeech, numClip, sfx } from './audio.js';
 import { setTargets, clearTargets } from './input.js';
 import { makeSequence, makeStep } from './tasks.js';
 import { roundPlan, afterPhase, afterRound } from './levels.js';
@@ -88,6 +88,7 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
       if (correct) {
         done = true;
         clearIdle();
+        hushSpeech(); // he answered — cut off any in-flight prompt/hint mid-word
         clearTargets();
         // Advance the voice expectation provisionally so a number spoken in
         // the gap before the next step arms still lands (tap 3, say "four").

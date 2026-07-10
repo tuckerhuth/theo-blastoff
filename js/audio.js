@@ -20,6 +20,16 @@ const buffers = new Map();
 let currentSpeech = null;   // { stop() } — so a new line can cut off the old one
 let rumbleNodes = null;
 
+// Rolling audit of what the voice actually said, and when. Exposed as
+// window.__speechLog so a stray clip (e.g. a hint speaking "ten" after
+// blast off) can be traced to what played just before it.
+const speechLog = [];
+function logSpeech(name) {
+  speechLog.push({ name, t: Date.now() });
+  if (speechLog.length > 60) speechLog.shift();
+}
+if (typeof window !== 'undefined') window.__speechLog = speechLog;
+
 export function audioReady() { return !!ctx; }
 export function audioState() { return ctx ? ctx.state : 'none'; } // parent-panel health line
 
@@ -85,6 +95,7 @@ export async function speak(names, { gap = 0.08, interrupt = true, skipIfBusy = 
       sources.push(src);
       src.onended = res;
       src.start();
+      logSpeech(name);
       setTimeout(res, buf.duration * 1000 + 300); // safety net
     });
     if (gap) await new Promise(res => setTimeout(res, gap * 1000));
@@ -94,6 +105,19 @@ export async function speak(names, { gap = 0.08, interrupt = true, skipIfBusy = 
     // tail: recognition results arrive well after the audio they transcribe
     setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 700);
   }
+}
+
+// Cut off whatever the game is currently saying. Called when the child
+// answers (tap or voice) so a prompt/hint never talks over — or trails
+// past — their response. No-op if nothing is playing.
+export function hushSpeech() {
+  if (!currentSpeech) return;
+  currentSpeech.stop();
+  currentSpeech = null;
+  logSpeech('(hushed)');
+  // Same recognition-lag tail as a natural finish, so a late echo of the
+  // clip we just cut doesn't get treated as the child speaking.
+  setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 700);
 }
 
 /* ---------------- synthesized SFX ---------------- */
@@ -174,7 +198,7 @@ export const sfx = {
     bp.frequency.setValueAtTime(180, t0);
     bp.frequency.exponentialRampToValueAtTime(3200, t0 + 1.3);
     const g = ctx.createGain();
-    env(g, t0, 0.06, 0.55, 1.45);
+    env(g, t0, 0.06, 0.95, 1.45); // loud — the launch payoff; must carry on iPad speakers
     src.connect(bp); bp.connect(g); g.connect(master);
     src.start(t0);
   },
