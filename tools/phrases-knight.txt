@@ -1,0 +1,11 @@
+# Blast Off, Theo! — Knight & Dragon voice overrides. Same format as
+# phrases.txt; only the 7 flavor lines this theme speaks differently.
+# Used by generate_voice.sh/record_voice.sh with an output-dir argument:
+#   ./tools/generate_voice.sh phrases-knight.txt ../assets/voice/knight
+hello|Sir Theo! A dragon is attacking the castle! Put on your armor!
+countdown|Now, let's count down and charge the dragon!
+allaboard|Draw your sword!
+blastoff|Victory!|130
+great1|Great counting, Sir Theo!
+onemore|One more quest?
+alldone|Great questing, Sir Theo! See you next time!

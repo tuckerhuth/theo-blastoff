@@ -46,6 +46,14 @@ const GAME_PHRASES = [
   'great flying captain theo see you next time',
   'tap to play',
   'all aboard',
+  // Knight & Dragon theme's own flavor lines (tools/phrases-knight.txt).
+  'sir theo a dragon is attacking the castle put on your armor',
+  'now let s count down and charge the dragon',
+  'draw your sword',
+  'victory',
+  'great counting sir theo',
+  'one more quest',
+  'great questing sir theo see you next time',
 ];
 
 let rec = null;

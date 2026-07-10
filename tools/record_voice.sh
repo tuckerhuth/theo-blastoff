@@ -1,12 +1,16 @@
 #!/bin/bash
 # Record the game's voice in YOUR voice, phrase by phrase.
 #
-#   ./tools/record_voice.sh          walk through every phrase
-#   ./tools/record_voice.sh n7 hello re-record just those clips
+#   ./tools/record_voice.sh                     walk through every shared phrase
+#   ./tools/record_voice.sh n7 hello             re-record just those clips
+#   ./tools/record_voice.sh phrases-knight.txt ../assets/voice/knight
+#                                                 walk through a theme's own pack
+#   ./tools/record_voice.sh phrases-knight.txt ../assets/voice/knight hello onemore
+#                                                 re-record just those clips in that pack
 #
 # For each phrase: Enter starts recording, Enter stops, you hear it back,
-# then accept / retry / skip. Accepted clips are saved straight into
-# assets/voice/ — preview the game locally, then commit + push to deploy.
+# then accept / retry / skip. Accepted clips are saved straight into the
+# output dir — preview the game locally, then commit + push to deploy.
 #
 # Needs sox (brew install sox). The first recording triggers the macOS
 # microphone permission prompt for your terminal app. Tips: quiet room,
@@ -14,7 +18,15 @@
 
 set -euo pipefail
 cd "$(dirname "$0")"
+PHRASES="phrases.txt"
 VOICE_DIR="../assets/voice"
+# A phrases file always ends in .txt; a clip name (n7, hello, ...) never
+# does, so this is an unambiguous way to accept either calling convention.
+if [[ "${1:-}" == *.txt ]]; then
+  PHRASES="$1"; shift
+  VOICE_DIR="${1:?"pass an output dir after the phrases file, e.g. ../assets/voice/knight"}"; shift
+fi
+mkdir -p "$VOICE_DIR"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 ONLY=("$@")
@@ -62,8 +74,8 @@ while IFS='|' read -r name text _rate <&3; do
       *)    continue ;;
     esac
   done
-done 3< phrases.txt
+done 3< "$PHRASES"
 
 echo
-echo "Done — $count clip(s) saved to assets/voice/."
+echo "Done — $count clip(s) saved to $VOICE_DIR/."
 echo "Preview locally, then commit + push to put your voice in the game."

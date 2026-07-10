@@ -3,9 +3,11 @@
 // audio never import a theme module directly.
 
 import { rocketTheme } from './rocket.js';
+import { knightTheme } from './knight.js';
 
 export const THEMES = {
   rocket: rocketTheme,
+  knight: knightTheme,
 };
 
 let active = rocketTheme;

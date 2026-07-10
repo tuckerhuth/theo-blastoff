@@ -10,7 +10,7 @@ const PRECACHE = [
   'css/game.css',
   'js/main.js', 'js/engine.js', 'js/ui.js', 'js/input.js', 'js/audio.js',
   'js/store.js', 'js/tasks.js', 'js/levels.js', 'js/fx.js', 'js/voice.js',
-  'js/themes/index.js', 'js/themes/rocket.js',
+  'js/themes/index.js', 'js/themes/rocket.js', 'js/themes/knight.js',
   'assets/fonts/fredoka-latin.woff2',
   'manifest.webmanifest',
   ...['n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
@@ -19,6 +19,8 @@ const PRECACHE = [
       'watchme','yourturn','ready',
       'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay','allaboard']
     .map(n => `assets/voice/${n}.m4a`),
+  ...['hello','countdown','allaboard','blastoff','great1','onemore','alldone']
+    .map(n => `assets/voice/knight/${n}.m4a`),
 ];
 
 self.addEventListener('install', (e) => {
