@@ -41,6 +41,13 @@ export const rocketTheme = {
     sceneEl.replaceChildren();
     svg = el('svg', { viewBox: '0 0 1000 700', preserveAspectRatio: 'xMidYMax slice' }, null);
     sceneEl.appendChild(svg);
+    // On narrow portrait screens, crop the scene toward the rocket so the
+    // star of the show never falls off the edge.
+    const fitView = () => {
+      svg.setAttribute('viewBox', innerWidth / innerHeight < 0.72 ? '280 0 660 700' : '0 0 1000 700');
+    };
+    fitView();
+    window.addEventListener('resize', fitView);
 
     const defs = el('defs', {}, svg);
     gradient(defs, 'bodyGrad', 1, 0, [[0, '#ffffff'], [0.55, '#eef1fb'], [1, '#c3c9e6']]);

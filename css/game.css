@@ -351,6 +351,13 @@ body {
 .parent-actions #btnCloseParent { background: #3a4070; }
 .parent-tip { margin-top: 16px; font-size: 13px; opacity: .6; }
 
+/* Phones: three tiles must still fit side by side */
+@media (max-width: 460px) {
+  .tile { width: clamp(92px, 27vw, 300px); }
+  .tile .numeral { font-size: 16vw; }
+  #tray { gap: 2.5vw; }
+}
+
 /* ---------- screen shake ---------- */
 
 .shake-sm { animation: shake-sm .3s linear infinite; }
