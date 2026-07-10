@@ -93,16 +93,17 @@ function doStep({ dir, target, prev, step, ghost = false }) {
     });
 
     if (ghost) {
-      // Tutorial demo: the ghost hand plays this step.
-      clearTargets(); // don't let taps race the demo
+      // Tutorial demo — but taps outrank it: targets stay armed, and
+      // answering early simply beats the ghost to it.
       (async () => {
         await speak(['watchme']);
+        if (done) return;
         await ui.ghostTo(correctEl());
-        onPick(solo ? 0 : step.correctIndex);
+        onPick(solo ? 0 : step.correctIndex); // no-op if already answered
         setTimeout(() => ui.ghostHide(), 500);
       })();
     } else {
-      if (!solo) speak([prev === null ? 'whatfirst' : 'whatnext'], { interrupt: false });
+      if (!solo) speak([prev === null ? 'whatfirst' : 'whatnext'], { skipIfBusy: true });
       armIdle();
     }
   });
@@ -144,7 +145,7 @@ async function runPhase(dir, plan, { tutorial = false } = {}) {
       await wait(280);
     }
 
-    if (tutorial && idx === 0) await speak(['yourturn']);
+    if (tutorial && idx === 0) speak(['yourturn']); // non-blocking, tappable through
     prev = target;
   }
   return stats;
@@ -159,10 +160,12 @@ async function runRound({ tutorial = false } = {}) {
   const planDown = tutorial ? { level: 0, len: 3, masked: false } : roundPlan('down');
   theme.setRange(planUp.len); // one number per round: build to N, count down from N
 
-  // BUILD — counting up
+  // BUILD — counting up. The intro doesn't block: the first question arms
+  // immediately, and answering simply cuts the speaker off. Theo outranks
+  // Samantha.
   theme.setMasked(planUp.masked);
   theme.setDirection('up');
-  await speak(tutorial ? ['hello'] : ['hello', 'countup'], { gap: 0.15 });
+  speak(tutorial ? ['hello'] : (sessionStars === 0 ? ['hello', 'countup'] : ['countup']), { gap: 0.15 });
   const upStats = await runPhase('up', planUp, { tutorial });
   sfx.chime();
   ui.clearTiles();
@@ -173,9 +176,9 @@ async function runRound({ tutorial = false } = {}) {
   sfx.steps();
   await theme.boardCrew();
 
-  // COUNTDOWN — counting down
+  // COUNTDOWN — counting down (intro doesn't block here either)
   theme.setMasked(planDown.masked);
-  await speak(['countdown']);
+  speak(['countdown']);
   theme.preCountdown(planDown.len);
   sfx.rumbleStart();
   sfx.rumbleLevel(0.15);

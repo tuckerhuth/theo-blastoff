@@ -3,7 +3,7 @@
 // (required by iOS Safari).
 
 import { store } from './store.js';
-import { setVoiceMuted } from './voice.js';
+import { setVoiceMuted, noteGameSpeech } from './voice.js';
 
 const CLIPS = [
   'n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
@@ -48,9 +48,11 @@ function clipReady(name) {
 
 export function numClip(n) { return `n${n}`; }
 
-// speak('whatnext') or speak(['ready','n3'], {gap:0.12}). Interrupts prior speech.
-export async function speak(names, { gap = 0.08, interrupt = true } = {}) {
+// speak('whatnext') or speak(['ready','n3'], {gap:0.12}). Interrupts prior
+// speech; skipIfBusy drops the line instead (for redundant prompts).
+export async function speak(names, { gap = 0.08, interrupt = true, skipIfBusy = false } = {}) {
   if (!ctx || !store.data.settings.voice) return;
+  if (skipIfBusy && currentSpeech) return;
   const list = Array.isArray(names) ? names : [names];
   if (interrupt && currentSpeech) currentSpeech.stop();
 
@@ -59,6 +61,7 @@ export async function speak(names, { gap = 0.08, interrupt = true } = {}) {
   currentSpeech = { stop() { cancelled = true; sources.forEach(s => { try { s.stop(); } catch {} }); } };
   const mine = currentSpeech;
   setVoiceMuted(true); // the mic must not hear the game count to itself
+  noteGameSpeech(list); // so late-arriving echo transcripts get discounted
 
   for (const name of list) {
     if (cancelled) return;
@@ -78,8 +81,8 @@ export async function speak(names, { gap = 0.08, interrupt = true } = {}) {
   }
   if (currentSpeech === mine) {
     currentSpeech = null;
-    // small tail: the recognizer lags real audio slightly
-    setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 350);
+    // tail: recognition results arrive well after the audio they transcribe
+    setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 700);
   }
 }
 
