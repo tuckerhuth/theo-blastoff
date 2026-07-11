@@ -93,6 +93,8 @@ let svg;
 let dragonOuter, dragonRoam, dragonWince, dragonTint, painEye, deadEye, fireBreath;
 let swordJab, sparkEl;
 let arrowEl, railL, railR;
+const stoneStops = {}; // gradient <stop>s recolored per palette (carved-rune look)
+let curGlow = 0;       // slot currently glowing as "active rune" (0 = none)
 const slots = {};
 const armor = {}; // 1..10 -> <g data-kd="armorN">
 let masked = false;
@@ -126,9 +128,14 @@ function applyPalette(i) {
   root.style.setProperty('--sky-mid', p.sky.mid);
   root.style.setProperty('--sky-bottom', p.sky.bottom);
   for (const [k, v] of Object.entries(p.vars)) svg.style.setProperty(k, v);
-  // re-tint already-lit slots (a palette can change mid-mission)
-  for (let n = 1; n <= 10; n++) if (slots[n]?.classList.contains('lit')) {
-    slots[n].querySelector('rect').style.fill = numColors()[n];
+  // Recolor the stone gradients from the palette (SVG stop-color doesn't
+  // reliably read CSS vars, so set it imperatively — this also re-tints
+  // already-lit slots when the palette changes mid-mission, for free).
+  if (stoneStops.off) {
+    stoneStops.off.top.setAttribute('stop-color', p.vars['--stone-top']);
+    stoneStops.off.bot.setAttribute('stop-color', p.vars['--stone-bot']);
+    stoneStops.on.top.setAttribute('stop-color', p.vars['--stone-ftop']);
+    stoneStops.on.bot.setAttribute('stop-color', p.vars['--stone-fbot']);
   }
 }
 
@@ -152,19 +159,38 @@ function layoutTower(x) {
 
 function buildTower() {
   // Slot/rail/arrow geometry verbatim from rocket.js (the tests assert this
-  // shape); only the x offset is themed — see layoutTower. Drawn AFTER the
-  // stage markup so ambient fly-bys pass BEHIND the slots (the design keeps
-  // its meter above the dragon too).
+  // shape: #slot{n} rect + .lit); only the x offset and the STONE styling
+  // are themed. The design's meter is carved stone runes — a top→bottom
+  // stone gradient per segment, a chiselled top highlight, and the rune
+  // gold when counted. Drawn AFTER the stage markup so ambient fly-bys pass
+  // BEHIND the slots (the design keeps its meter above the dragon too).
+  const defs = el('defs', {}, svg);
+  const grad = (id) => {
+    const g = el('linearGradient', { id, x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+    return { top: el('stop', { offset: 0 }, g), bot: el('stop', { offset: 1 }, g) };
+  };
+  Object.assign(stoneStops, { off: grad('kdStoneOff'), on: grad('kdStoneOn') });
+
   railL = el('rect', { x: 400, y: 185, width: 10, height: 375, style: 'fill:var(--castle-2)' }, svg);
   railR = el('rect', { x: 462, y: 185, width: 10, height: 375, style: 'fill:var(--castle-2)' }, svg);
   for (let n = 1; n <= 10; n++) {
     const y = 482 - (n - 1) * 30;
     const g = el('g', { class: 'slot', id: `slot${n}` }, svg);
-    el('rect', { x: 408, y, width: 56, height: 28, rx: 8 }, g);
-    el('text', { x: 436, y: y + 21, 'font-size': 20, 'text-anchor': 'middle' }, g).textContent = n;
+    el('rect', { x: 408, y, width: 56, height: 28, rx: 7, class: 'kd-slot-bg' }, g);
+    // chiselled top highlight (the design's inset 0 2px rgba(255,255,255,.14))
+    el('rect', { x: 411, y: y + 2, width: 50, height: 3, rx: 1.5, class: 'kd-slot-hi' }, g);
+    el('text', { x: 436, y: y + 21, 'font-size': 19, 'text-anchor': 'middle' }, g).textContent = n;
     slots[n] = g;
   }
   arrowEl = el('text', { x: 436, y: 172, 'font-size': 34, 'text-anchor': 'middle' }, svg);
+}
+
+// Glow the "active" rune (the segment just counted) like the design's
+// current-segment box-shadow. 0 clears it.
+function glowSlot(n) {
+  if (curGlow && slots[curGlow]) slots[curGlow].classList.remove('kd-cur');
+  curGlow = n;
+  if (n && slots[n]) slots[n].classList.add('kd-cur');
 }
 
 /* ---------------- dragon choreography (design script, ported) ---------------- */
@@ -296,9 +322,12 @@ export const knightTheme = {
     style.textContent = `
       text { font-family: ${DISPLAY_FONT}; }
       ${KEYFRAMES}
-      .slot rect { fill: var(--stone-top); stroke: var(--stone-edge); stroke-width: 2; transition: fill .25s; }
-      .slot text { fill: rgba(255,255,255,.55); font-weight: 700; transition: fill .25s; }
+      .slot .kd-slot-bg { fill: url(#kdStoneOff); stroke: var(--stone-edge); stroke-width: 1.5; transition: filter .3s; }
+      .slot.lit .kd-slot-bg { fill: url(#kdStoneOn); }
+      .slot .kd-slot-hi { fill: rgba(255,255,255,.14); stroke: none; pointer-events: none; }
+      .slot text { fill: rgba(255,255,255,.5); font-weight: 700; transition: fill .25s; }
       .slot.lit text { fill: var(--rune); }
+      .slot.kd-cur .kd-slot-bg { filter: drop-shadow(0 0 6px var(--stone-glow)); }
     `;
 
     // The whole world, verbatim from the design (see knight-scene.js).
@@ -345,6 +374,7 @@ export const knightTheme = {
     setSpark(0, 0.4);
     jabSword(0);
     setDragonMode('ambient'); // snaps offstage; the flight loop resumes passes
+    glowSlot(0);
     for (let n = 1; n <= 10; n++) {
       setArmor(n, !empty);
       this.light(n, false);
@@ -376,13 +406,15 @@ export const knightTheme = {
     const g = slots[n];
     if (!g) return;
     g.classList.toggle('lit', on);
-    g.querySelector('rect').style.fill = on ? numColors()[n] : '';
+    // fill is the stone-on/off gradient via CSS (.slot.lit rect); no inline
+    // fill — the tower is stone, not rainbow (the tiles keep the rainbow).
     slotText(n);
   },
 
   markCounted(n) {
     saidNums.add(n);
     this.light(n, true);
+    glowSlot(n); // the just-counted rune glows as the active one
   },
 
   // Count-up: armor piece n settles into place (design opacity+translateY
@@ -405,6 +437,7 @@ export const knightTheme = {
   preCountdown(len) {
     saidNums.clear();
     for (let n = 1; n <= 10; n++) this.light(n, n <= len);
+    glowSlot(len); // the top rune is the active one to count down from
     this.setDirection('down');
     setDragonMode('battle');
   },
@@ -417,6 +450,7 @@ export const knightTheme = {
   tickCountdown(n, len) {
     saidNums.add(n);
     this.light(n, false);
+    glowSlot(n - 1); // active rune drops to the next number down (0 clears)
     jabSword(92);
     setTimeout(() => jabSword(0), 250);
     setTimeout(() => {
