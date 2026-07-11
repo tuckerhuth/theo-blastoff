@@ -3,7 +3,7 @@
 // (required by iOS Safari).
 
 import { store } from './store.js';
-import { setVoiceMuted, noteGameSpeech } from './voice.js';
+import { setVoiceMuted, noteGameSpeech, voiceAudit } from './voice.js';
 
 const CLIPS = [
   'n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
@@ -39,6 +39,7 @@ let ctx = null;
 let master = null;
 const buffers = new Map();  // keyed by clipKey(name), NOT the bare clip name
 let currentSpeech = null;   // { stop() } — so a new line can cut off the old one
+let lastSpoken = [];        // clip names of the speech now/last playing (for hush re-stamp)
 let rumbleNodes = null;
 
 // Rolling audit of what the voice actually said, and when. Exposed as
@@ -48,8 +49,15 @@ const speechLog = [];
 function logSpeech(name) {
   speechLog.push({ name, t: Date.now() });
   if (speechLog.length > 60) speechLog.shift();
+  voiceAudit({ clip: name }); // interleave clips with heard-transcript verdicts
 }
-if (typeof window !== 'undefined') window.__speechLog = speechLog;
+if (typeof window !== 'undefined') {
+  window.__speechLog = speechLog;
+  // Test hook (harmless in prod): drive a real speak() — including its mute
+  // window and unmute tail — so the gate can inject __hear() at exact points
+  // of the speech timeline instead of racing the idle-prompt ladder.
+  window.__speak = (names) => speak(names);
+}
 
 export function audioReady() { return !!ctx; }
 export function audioState() { return ctx ? ctx.state : 'none'; } // parent-panel health line
@@ -118,6 +126,7 @@ export async function speak(names, { gap = 0.08, interrupt = true, skipIfBusy = 
   const mine = currentSpeech;
   setVoiceMuted(true); // the mic must not hear the game count to itself
   noteGameSpeech(list); // so late-arriving echo transcripts get discounted
+  lastSpoken = list;
 
   for (const name of list) {
     if (cancelled) return;
@@ -134,6 +143,10 @@ export async function speak(names, { gap = 0.08, interrupt = true, skipIfBusy = 
       logSpeech(name);
       setTimeout(res, buf.duration * 1000 + 300); // safety net
     });
+    // Echo windows measure from when a clip's AUDIO ends, not when the
+    // sequence started — re-stamp so voice.js guards track real sound and
+    // neither expire mid-clip nor over-block after short clips.
+    noteGameSpeech([name]);
     if (gap) await new Promise(res => setTimeout(res, gap * 1000));
   }
   if (currentSpeech === mine) {
@@ -151,6 +164,7 @@ export function hushSpeech() {
   currentSpeech.stop();
   currentSpeech = null;
   logSpeech('(hushed)');
+  noteGameSpeech(lastSpoken); // the audio stopped NOW — echo windows anchor here
   // Same recognition-lag tail as a natural finish, so a late echo of the
   // clip we just cut doesn't get treated as the child speaking.
   setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 700);

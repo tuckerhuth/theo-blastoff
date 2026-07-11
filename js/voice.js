@@ -107,7 +107,31 @@ function caption(text, matched) {
   captionTimer = setTimeout(() => { captionTimer = null; refreshCaption(); }, 2500);
 }
 
+/* ---------------- persistent voice audit ---------------- */
+// Every transcript the recognizer delivers — and every clip the game plays
+// (audio.js) — with the verdict of what happened to it. THE diagnostic for
+// "he said it and nothing happened": mid-speech drops used to leave no
+// trace at all (the v23 playtest was undiagnosable after the fact). Ring of
+// 200, persisted under its own key, surfaced in the parent panel and as
+// window.__hearLog.
+const AUDIT_KEY = 'blastoff-voicelog-v1';
+let auditLog = [];
+try { auditLog = JSON.parse(localStorage.getItem(AUDIT_KEY)) || []; } catch { /* fresh log */ }
+let auditSaveT = null;
+export function voiceAudit(entry) {
+  auditLog.push({ t: Date.now(), ...entry });
+  if (auditLog.length > 200) auditLog.splice(0, auditLog.length - 200);
+  if (auditSaveT) return; // debounce: interim transcripts arrive several/sec
+  auditSaveT = setTimeout(() => {
+    auditSaveT = null;
+    try { localStorage.setItem(AUDIT_KEY, JSON.stringify(auditLog)); } catch { /* storage blocked */ }
+  }, 500);
+}
+export function voiceAuditLog() { return auditLog; }
+
 // Numbers the game itself said recently (echo window): n → timestamp.
+// audio.js stamps every clip at speak() START and again as each clip's
+// audio ENDS (and on hush) — so the guards below can anchor on real sound.
 const recentGameNums = new Map();
 
 // audio.js reports every clip the game plays, so we can discount echoes.
@@ -129,6 +153,18 @@ const STRICT_WORDS = {
   1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10,
 };
 
+// Mid-speech fuzzy matching (v24). A homophone that is ALSO a word the game
+// itself says must stay dead while the game speaks — "time TO build" can
+// never become 2 — but homophones the game never utters ("for", "ate",
+// "free") are almost certainly the child answering over the prompt, and
+// dropping those was the v23 playtest bug ("he said the right answer during
+// the prompt and nothing happened"). Strict words always count; the chain
+// guard keeps everything honest. Known residual: "two" transcribed as "to"
+// still dies mid-speech — the safe trade.
+const GAME_VOCAB = new Set(GAME_PHRASES.flatMap((p) => p.split(' ')));
+const MUTED_WORDS = Object.fromEntries(Object.entries(WORDS)
+  .filter(([tok]) => STRICT_WORDS[tok] !== undefined || !GAME_VOCAB.has(tok)));
+
 /* ---------------- chain counting ---------------- */
 // Theo counts in bursts ("one… two… three…" at ~1/sec). We accept every
 // number that extends the expected sequence from the current target in the
@@ -142,6 +178,7 @@ const STRICT_WORDS = {
 let wantedDir = 1;             // +1 build, −1 countdown — drives chain validation
 const pending = [];            // numbers said ahead of the game: [{ n, t }]
 const PENDING_TTL = 4000;
+let lastHintBlocked = false;   // set by extractChain, read for the audit verdict
 
 export function voiceQueueSize() { return pending.length; }
 
@@ -149,10 +186,15 @@ export function voiceQueueSize() { return pending.length; }
 function extractChain(tokens, words) {
   if (wanted === null) return [];
   const accepted = [];
-  // The 12s idle hint speaks the wanted number aloud — a late echo of it
-  // must not answer the question (Theo repeating it right after is the
-  // unavoidable cost, same trade-off as the mute-window guard).
-  const hintBlocked = Date.now() - (recentGameNums.get(wanted) || 0) < 2500;
+  // The game sometimes speaks the wanted number itself (rung-3 hint, the
+  // countdown's solo prompts) — its own echo must not answer the question.
+  // Blocked while that number is part of the speech now playing (stamped
+  // since this mute window began) and for 1s after its clip ENDS. The short
+  // post-end window is deliberate: Theo repeating the modeled number ~1s
+  // later is call-and-response — the point of the hint. v23's flat 2.5s
+  // from clip START ate that echo (and expired mid-clip on long prompts).
+  const stamp = recentGameNums.get(wanted) || 0;
+  const hintBlocked = (muted && stamp >= muteStartedAt) || (Date.now() - stamp < 1000);
   const expectAt = () => {
     if (accepted.length) return accepted[accepted.length - 1] + wantedDir;
     return pending.length ? pending[pending.length - 1].n + wantedDir : wanted;
@@ -166,7 +208,7 @@ function extractChain(tokens, words) {
     }
     for (const n of candidates) {
       if (n !== expectAt()) continue; // doesn't extend the chain → noise
-      if (n === wanted && !accepted.length && !pending.length && hintBlocked) continue;
+      if (n === wanted && !accepted.length && !pending.length && hintBlocked) { lastHintBlocked = true; continue; }
       accepted.push(n);
     }
   }
@@ -206,12 +248,12 @@ function hear(transcript) {
     // that check — "one" must not die because "one more launch" contains it.
     let rest = ` ${joined} `;
     for (const p of GAME_PHRASES) {
-      if (tokens.length >= 2 && p.includes(joined)) return;
+      if (tokens.length >= 2 && p.includes(joined)) { voiceAudit({ heard: joined, verdict: 'game-phrase' }); return; }
       while (rest.includes(` ${p} `)) rest = rest.replace(` ${p} `, ' ');
     }
     if (rest.trim() !== joined) {
       tokens = rest.split(/[^a-z0-9]+/).filter(Boolean);
-      if (!tokens.length) return; // nothing but game speech
+      if (!tokens.length) { voiceAudit({ heard: joined, verdict: 'game-phrase' }); return; }
       joined = tokens.join(' ');
     }
   }
@@ -221,29 +263,44 @@ function hear(transcript) {
   // switch the world out from under an in-progress question.
   if (!muted && wanted === null && titleCommands) {
     for (const tok of tokens) {
-      if (titleCommands[tok]) { titleCommands[tok](); return; }
+      if (titleCommands[tok]) { voiceAudit({ heard: joined, verdict: `theme:${tok}` }); titleCommands[tok](); return; }
     }
   }
 
-  // While the game speaks, only strict number words count ("time TO build"
-  // must never become 2) — but a clear chain still cuts through.
-  const accepted = extractChain(tokens, muted ? STRICT_WORDS : WORDS);
+  // While the game speaks, fuzzy matching narrows to words the game itself
+  // never says (MUTED_WORDS) — a clear chain still cuts through, homophone
+  // or not, and the game's own lines can never count themselves.
+  lastHintBlocked = false;
+  const accepted = extractChain(tokens, muted ? MUTED_WORDS : WORDS);
   if (accepted.length) {
     const now = Date.now();
     for (const n of accepted) pending.push({ n, t: now });
     caption(`🗣 “${joined}”  → ${accepted.join(', ')} ✓`, true);
+    voiceAudit({ heard: joined, muted, verdict: `accepted ${accepted.join(',')}` });
     drainPending();
     return;
   }
-  if (muted) return; // everything else mid-speech is (mostly) the game's voice
+  if (muted) {
+    // Anything else mid-speech is (mostly) the game's own voice — but keep
+    // the evidence: these silent drops made the v23 playtest undiagnosable.
+    voiceAudit({ heard: joined, muted: true, verdict: lastHintBlocked ? 'hint-blocked' : 'muted-drop' });
+    caption(`🗣 “${joined}” · 🔇`, false);
+    return;
+  }
 
   // Bare numbers the game just said (echo through the speakers): discount.
+  // Stamps refresh at clip END (audio.js), so 1.5s covers real echo lag
+  // without going deaf for a clip-length-dependent stretch.
   if (tokens.length <= 3) {
     const now = Date.now();
     const nums = tokens.map(t => WORDS[t]).filter(v => v !== undefined);
-    if (nums.length && nums.every(n => now - (recentGameNums.get(n) || 0) < 3000)) return;
+    if (nums.length && nums.every(n => now - (recentGameNums.get(n) || 0) < 1500)) {
+      voiceAudit({ heard: joined, verdict: 'echo-discount' });
+      return;
+    }
   }
 
+  voiceAudit({ heard: joined, verdict: wanted === null ? 'not-armed' : (lastHintBlocked ? 'hint-blocked' : 'no-match') });
   caption(`🗣 “${joined}”`, false);
 }
 
@@ -257,10 +314,12 @@ function handleResults(e) {
 
 // Debug/audit hooks (harmless in production): __hear('seven') simulates the
 // recognizer hearing that phrase; __voiceMuted lets the test gate wait for
-// the un-muted state, where the phrase-strip path (not STRICT_WORDS) runs.
+// the un-muted state, where the phrase-strip path (not MUTED_WORDS) runs;
+// __hearLog is the persistent transcript-verdict audit (see voiceAudit).
 if (typeof window !== 'undefined') {
   window.__hear = hear;
   window.__voiceMuted = () => muted;
+  window.__hearLog = auditLog;
 }
 
 function create() {
@@ -309,4 +368,10 @@ export function voiceExpect(n, cb, dir = wantedDir) {
 export function voiceClearExpect() { wanted = null; onMatch = null; pending.length = 0; }
 
 // audio.js mutes recognition while the game's own voice is playing.
-export function setVoiceMuted(m) { muted = m; }
+// muteStartedAt lets the hint guard tell "this number is part of the speech
+// playing right now" (stamp ≥ mute start) from a stale stamp.
+let muteStartedAt = 0;
+export function setVoiceMuted(m) {
+  if (m && !muted) muteStartedAt = Date.now();
+  muted = m;
+}

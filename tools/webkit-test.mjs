@@ -236,6 +236,95 @@ await scenario('voice chain: interim dedup + prompt contamination + digit-runs',
   return playUntilBanner(25000, false); // watch only — voice must carry it
 });
 
+await scenario('voice during game speech: homophones land, game words never', async () => {
+  await fresh({ seqLen: 5 });
+  await tapSel('#title');
+  await page.waitForSelector('.tile', { timeout: 8000 });
+  await sleep(200);
+  let s = await gameState();
+  const litReaches = async (n, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms && s.lit.length < n) { await sleep(300); s = await gameState(); }
+    return s.lit.length >= n;
+  };
+  await page.evaluate(() => { window.__hear('one'); });
+  if (!(await litReaches(1, 8000))) return false;
+
+  // REGRESSION: a game phrase heard mid-speech must never count. "time TO
+  // build" carries a homophone of the expected 2 — it has to stay dead.
+  const mutedAtPhrase = await page.evaluate(() => {
+    window.__speak(['countingup', 'after1']); // mutes synchronously
+    window.__hear('captain theo time to build your rocket');
+    return window.__voiceMuted();
+  });
+  if (!mutedAtPhrase) return false; // validity: injection really was mid-speech
+  await sleep(1200);
+  s = await gameState();
+  if (s.lit.length !== 1) return false; // 'to' answered the game's own prompt
+
+  await page.evaluate(() => { window.__hear('two'); });
+  if (!(await litReaches(2, 8000))) return false;
+
+  // DURING SPEECH: expecting 3, the recognizer transcribes Theo's "three"
+  // as the homophone "free" while the game is mid-prompt. It must land —
+  // dropping it was the v23 playtest bug ("he said the right answer during
+  // the prompt and nothing happened").
+  const mutedAtFree = await page.evaluate(() => {
+    window.__speak(['countingup', 'after2']);
+    window.__hear('free');
+    return window.__voiceMuted();
+  });
+  if (!mutedAtFree) return false;
+  if (!(await litReaches(3, 8000))) return false;
+
+  // UNMUTE TAIL: expecting 4, "for" arrives in the 700ms post-clip window
+  // (recognition lag) — still muted, must still land.
+  const mutedAtFor = await page.evaluate(async () => {
+    await window.__speak(['after3']); // resolves at clip end, before the tail unmute
+    const m = window.__voiceMuted();
+    window.__hear('for');
+    return m;
+  });
+  if (!mutedAtFor) return false;
+  return litReaches(4, 8000);
+});
+
+await scenario('voice hint echo: game\'s own number blocked, Theo\'s repeat lands', async () => {
+  await fresh({ seqLen: 5 });
+  await tapSel('#title');
+  await page.waitForSelector('.tile', { timeout: 8000 });
+  await sleep(200);
+  let s = await gameState();
+  const litReaches = async (n, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms && s.lit.length < n) { await sleep(300); s = await gameState(); }
+    return s.lit.length >= n;
+  };
+  for (const w of ['one', 'two', 'three', 'four']) {
+    await page.evaluate((w) => { window.__hear(w); }, w);
+  }
+  if (!(await litReaches(4, 15000))) return false;
+
+  // The game models the answer (rung-3 hint / countdown solo prompt speaks
+  // "five"). Its own echo through the speakers must NOT answer for Theo...
+  await page.evaluate(() => {
+    window.__speak(['n5']);
+    window.__hear('five'); // speaker echo, mid-clip
+  });
+  await sleep(900);
+  s = await gameState();
+  if (s.lit.length !== 4) return false; // the game answered its own hint
+
+  // ...but Theo repeating the modeled number right after IS the point of
+  // the hint (call-and-response). Half a second past the unmute it must land.
+  const t0 = Date.now();
+  while (Date.now() - t0 < 5000 && await page.evaluate(() => window.__voiceMuted())) await sleep(100);
+  if (await page.evaluate(() => window.__voiceMuted())) return false;
+  await sleep(500);
+  await page.evaluate(() => { window.__hear('five'); });
+  return litReaches(5, 8000);
+});
+
 await scenario(TOUCH ? 'gear: touch hold (0.7s no, 2.2s yes)' : 'gear: mouse click opens instantly', async () => {
   await fresh();
   if (!TOUCH) {

@@ -5,7 +5,7 @@ import { store, GAME_VERSION } from './store.js';
 import { numberColors } from './themes/index.js';
 import { tileTapHandler } from './input.js';
 import { nudge } from './levels.js';
-import { voiceSupported, voiceRefresh, micStatus } from './voice.js';
+import { voiceSupported, voiceRefresh, micStatus, voiceAuditLog } from './voice.js';
 import { audioState } from './audio.js';
 
 export const STICKERS = ['🚀', '⭐', '👨‍🚀', '🪐', '🌙', '☄️', '🛸', '🌈', '🏆', '🦄', '🐉', '🦖'];
@@ -19,7 +19,7 @@ export const ui = {
     for (const id of ['app', 'scene', 'fx', 'tray', 'bigNum', 'stars', 'banner', 'ghost',
       'title', 'titleShelf', 'ceremony', 'bigSticker', 'ceremonyShelf',
       'alldone', 'btnOneMore', 'btnAllDone', 'parent', 'parentStats', 'parentToggles',
-      'parentLevels', 'micDot', 'parentBtn', 'btnTutorial', 'btnReset', 'btnCloseParent', 'playHint']) {
+      'parentLevels', 'parentVoice', 'micDot', 'parentBtn', 'btnTutorial', 'btnReset', 'btnCloseParent', 'playHint']) {
       this.els[id] = $(id);
     }
     this.setStars(0);
@@ -161,6 +161,7 @@ export const ui = {
     this.renderParentStats();
     this.renderParentLevels();
     this.renderParentToggles();
+    this.renderParentVoice();
     // Health line: makes any "broken on my phone" screenshot self-diagnosing.
     const sw = navigator.serviceWorker?.controller ? 'on' : 'none';
     document.getElementById('parentTip').textContent =
@@ -270,6 +271,37 @@ export const ui = {
       l.appendChild(document.createTextNode(label));
       wrap.appendChild(l);
     }
+  },
+
+  // Voice audit: what the recognizer heard and what happened to it,
+  // interleaved with the clips the game spoke. This is how "he said the
+  // right number and nothing happened" gets diagnosed after a play session
+  // — mid-speech drops leave no other trace (see voiceAudit in voice.js).
+  renderParentVoice() {
+    const wrap = this.els.parentVoice;
+    wrap.replaceChildren();
+    const log = voiceAuditLog();
+    if (!log.length) return; // mic never used on this device — say nothing
+    const h = document.createElement('h3');
+    h.textContent = '🎤 Voice log (newest first · ▶ = game clip · 🔇 = game was speaking)';
+    wrap.appendChild(h);
+    const pre = document.createElement('pre');
+    pre.className = 'voicelog';
+    pre.textContent = log.slice(-60).reverse().map((e) => {
+      const time = new Date(e.t).toLocaleTimeString();
+      return e.clip !== undefined
+        ? `${time}  ▶ ${e.clip}`
+        : `${time}  “${e.heard}”${e.muted ? ' 🔇' : ''} → ${e.verdict}`;
+    }).join('\n');
+    wrap.appendChild(pre);
+    const copy = document.createElement('button');
+    copy.textContent = `Copy full log (${log.length})`;
+    copy.addEventListener('click', () => {
+      navigator.clipboard?.writeText(JSON.stringify(log)).then(
+        () => { copy.textContent = 'Copied ✓'; },
+        () => { copy.textContent = 'Copy blocked — screenshot instead'; });
+    });
+    wrap.appendChild(copy);
   },
 
   // Visible ⚙️: instant click with a mouse (Theo doesn't use one), but on a
