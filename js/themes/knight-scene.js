@@ -49,9 +49,9 @@ export const STAGE_MARKUP = `<g data-kd="stage" transform="translate(0,52) scale
         <path d="M572 115 l16 5 l-16 5 z" style="transform-origin:572px 120px;animation:kdFlag 2.6s ease-in-out infinite"></path>
         <path d="M609 85 l17 5 l-17 5 z" style="transform-origin:609px 90px;animation:kdFlag 2.3s ease-in-out .5s infinite"></path>
       </g>
-      <ellipse cx="644" cy="128" rx="12" ry="22" style="fill:var(--smoke);transform-origin:644px 148px;animation:kdSmoke 3.4s ease-in .4s infinite"></ellipse>
-      <ellipse cx="650" cy="128" rx="9" ry="17" style="fill:var(--smoke);transform-origin:650px 148px;animation:kdSmoke 4.1s ease-in 1.5s infinite"></ellipse>
-      <g style="transform-origin:644px 152px;animation:kdFlick .3s ease-in-out infinite">
+      <ellipse data-kd="smoke" cx="644" cy="128" rx="12" ry="22" style="fill:var(--smoke);transform-origin:644px 148px;animation:kdSmoke 3.4s ease-in .4s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="650" cy="128" rx="9" ry="17" style="fill:var(--smoke);transform-origin:650px 148px;animation:kdSmoke 4.1s ease-in 1.5s infinite"></ellipse>
+      <g data-kd="fire" style="transform-origin:644px 152px;animation:kdFlick .3s ease-in-out infinite">
         <path d="M644 128 q13 15 9 26 q-2 9 -9 13 q-7 -4 -9 -13 q-3 -11 9 -26 z" style="fill:var(--fire-1)"></path>
         <path d="M644 140 q6 8 4 14 q-1 5 -4 7 q-3 -2 -4 -7 q-1 -6 4 -14 z" style="fill:var(--fire-2)"></path>
       </g>
@@ -128,28 +128,28 @@ export const STAGE_MARKUP = `<g data-kd="stage" transform="translate(0,52) scale
     </g>
     <!-- HEAVY SMOKE + FLAME on burning houses -->
     <g>
-      <ellipse cx="307" cy="188" rx="15" ry="30" style="fill:var(--smoke);transform-origin:307px 210px;animation:kdSmoke 3.0s ease-in .0s infinite"></ellipse>
-      <ellipse cx="314" cy="188" rx="12" ry="24" style="fill:var(--smoke);transform-origin:314px 210px;animation:kdSmoke 3.7s ease-in .8s infinite"></ellipse>
-      <ellipse cx="301" cy="188" rx="11" ry="22" style="fill:var(--smoke);transform-origin:301px 210px;animation:kdSmoke 4.4s ease-in 1.8s infinite"></ellipse>
-      <ellipse cx="362" cy="204" rx="12" ry="24" style="fill:var(--smoke);transform-origin:362px 224px;animation:kdSmoke 3.3s ease-in .5s infinite"></ellipse>
-      <ellipse cx="368" cy="204" rx="10" ry="20" style="fill:var(--smoke);transform-origin:368px 224px;animation:kdSmoke 4.1s ease-in 1.5s infinite"></ellipse>
-      <ellipse cx="464" cy="282" rx="15" ry="30" style="fill:var(--smoke);transform-origin:464px 304px;animation:kdSmoke 3.1s ease-in .3s infinite"></ellipse>
-      <ellipse cx="471" cy="282" rx="12" ry="24" style="fill:var(--smoke);transform-origin:471px 304px;animation:kdSmoke 3.9s ease-in 1.3s infinite"></ellipse>
-      <ellipse cx="457" cy="282" rx="11" ry="22" style="fill:var(--smoke);transform-origin:457px 304px;animation:kdSmoke 4.6s ease-in 2.2s infinite"></ellipse>
-      <ellipse cx="648" cy="348" rx="15" ry="30" style="fill:var(--smoke);transform-origin:648px 370px;animation:kdSmoke 3.2s ease-in .6s infinite"></ellipse>
-      <ellipse cx="655" cy="348" rx="12" ry="24" style="fill:var(--smoke);transform-origin:655px 370px;animation:kdSmoke 4.0s ease-in 1.6s infinite"></ellipse>
-      <ellipse cx="641" cy="348" rx="11" ry="22" style="fill:var(--smoke);transform-origin:641px 370px;animation:kdSmoke 4.7s ease-in 2.5s infinite"></ellipse>
-      <ellipse cx="353" cy="398" rx="16" ry="32" style="fill:var(--smoke);transform-origin:353px 420px;animation:kdSmoke 3.0s ease-in .2s infinite"></ellipse>
-      <ellipse cx="361" cy="398" rx="13" ry="26" style="fill:var(--smoke);transform-origin:361px 420px;animation:kdSmoke 3.8s ease-in 1.1s infinite"></ellipse>
-      <ellipse cx="346" cy="398" rx="11" ry="22" style="fill:var(--smoke);transform-origin:346px 420px;animation:kdSmoke 4.5s ease-in 2.1s infinite"></ellipse>
-      <ellipse cx="600" cy="104" rx="12" ry="24" style="fill:var(--smoke);transform-origin:600px 122px;animation:kdSmoke 3.5s ease-in .4s infinite"></ellipse>
-      <ellipse cx="606" cy="104" rx="10" ry="20" style="fill:var(--smoke);transform-origin:606px 122px;animation:kdSmoke 4.3s ease-in 1.7s infinite"></ellipse>
-      <g style="transform-origin:307px 214px;animation:kdFlick .3s ease-in-out infinite"><path d="M307 190 q13 15 9 26 q-2 9 -9 13 q-7 -4 -9 -13 q-3 -11 9 -26 z" style="fill:var(--fire-1)"></path><path d="M307 202 q6 8 4 14 q-1 5 -4 7 q-3 -2 -4 -7 q-1 -6 4 -14 z" style="fill:var(--fire-2)"></path></g>
-      <g style="transform-origin:362px 228px;animation:kdFlick .27s ease-in-out .14s infinite"><path d="M362 208 q11 13 8 22 q-2 8 -8 11 q-6 -3 -8 -11 q-2 -9 8 -22 z" style="fill:var(--fire-1)"></path></g>
-      <g style="transform-origin:464px 306px;animation:kdFlick .28s ease-in-out .1s infinite"><path d="M464 282 q14 16 10 28 q-2 9 -10 13 q-8 -4 -10 -13 q-3 -12 10 -28 z" style="fill:var(--fire-1)"></path><path d="M464 295 q7 9 5 15 q-1 5 -5 7 q-4 -2 -5 -7 q-2 -6 5 -15 z" style="fill:var(--fire-2)"></path></g>
-      <g style="transform-origin:648px 372px;animation:kdFlick .31s ease-in-out .2s infinite"><path d="M648 348 q14 16 10 28 q-2 9 -10 13 q-8 -4 -10 -13 q-3 -12 10 -28 z" style="fill:var(--fire-1)"></path><path d="M648 361 q7 9 5 15 q-1 5 -5 7 q-4 -2 -5 -7 q-2 -6 5 -15 z" style="fill:var(--fire-2)"></path></g>
-      <g style="transform-origin:353px 420px;animation:kdFlick .3s ease-in-out .16s infinite"><path d="M353 394 q15 17 10 30 q-2 10 -10 15 q-8 -5 -10 -15 q-3 -13 10 -30 z" style="fill:var(--fire-1)"></path><path d="M353 408 q7 9 5 17 q-1 6 -5 9 q-4 -3 -5 -9 q-2 -8 5 -17 z" style="fill:var(--fire-2)"></path></g>
-      <g style="transform-origin:600px 132px;animation:kdFlick .29s ease-in-out .16s infinite"><path d="M600 114 q10 12 7 21 q-1 7 -7 10 q-6 -3 -7 -10 q-2 -9 7 -21 z" style="fill:var(--fire-1)"></path></g>
+      <ellipse data-kd="smoke" cx="307" cy="188" rx="15" ry="30" style="fill:var(--smoke);transform-origin:307px 210px;animation:kdSmoke 3.0s ease-in .0s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="314" cy="188" rx="12" ry="24" style="fill:var(--smoke);transform-origin:314px 210px;animation:kdSmoke 3.7s ease-in .8s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="301" cy="188" rx="11" ry="22" style="fill:var(--smoke);transform-origin:301px 210px;animation:kdSmoke 4.4s ease-in 1.8s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="362" cy="204" rx="12" ry="24" style="fill:var(--smoke);transform-origin:362px 224px;animation:kdSmoke 3.3s ease-in .5s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="368" cy="204" rx="10" ry="20" style="fill:var(--smoke);transform-origin:368px 224px;animation:kdSmoke 4.1s ease-in 1.5s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="464" cy="282" rx="15" ry="30" style="fill:var(--smoke);transform-origin:464px 304px;animation:kdSmoke 3.1s ease-in .3s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="471" cy="282" rx="12" ry="24" style="fill:var(--smoke);transform-origin:471px 304px;animation:kdSmoke 3.9s ease-in 1.3s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="457" cy="282" rx="11" ry="22" style="fill:var(--smoke);transform-origin:457px 304px;animation:kdSmoke 4.6s ease-in 2.2s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="648" cy="348" rx="15" ry="30" style="fill:var(--smoke);transform-origin:648px 370px;animation:kdSmoke 3.2s ease-in .6s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="655" cy="348" rx="12" ry="24" style="fill:var(--smoke);transform-origin:655px 370px;animation:kdSmoke 4.0s ease-in 1.6s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="641" cy="348" rx="11" ry="22" style="fill:var(--smoke);transform-origin:641px 370px;animation:kdSmoke 4.7s ease-in 2.5s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="353" cy="398" rx="16" ry="32" style="fill:var(--smoke);transform-origin:353px 420px;animation:kdSmoke 3.0s ease-in .2s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="361" cy="398" rx="13" ry="26" style="fill:var(--smoke);transform-origin:361px 420px;animation:kdSmoke 3.8s ease-in 1.1s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="346" cy="398" rx="11" ry="22" style="fill:var(--smoke);transform-origin:346px 420px;animation:kdSmoke 4.5s ease-in 2.1s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="600" cy="104" rx="12" ry="24" style="fill:var(--smoke);transform-origin:600px 122px;animation:kdSmoke 3.5s ease-in .4s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="606" cy="104" rx="10" ry="20" style="fill:var(--smoke);transform-origin:606px 122px;animation:kdSmoke 4.3s ease-in 1.7s infinite"></ellipse>
+      <g data-kd="fire" style="transform-origin:307px 214px;animation:kdFlick .3s ease-in-out infinite"><path d="M307 190 q13 15 9 26 q-2 9 -9 13 q-7 -4 -9 -13 q-3 -11 9 -26 z" style="fill:var(--fire-1)"></path><path d="M307 202 q6 8 4 14 q-1 5 -4 7 q-3 -2 -4 -7 q-1 -6 4 -14 z" style="fill:var(--fire-2)"></path></g>
+      <g data-kd="fire" style="transform-origin:362px 228px;animation:kdFlick .27s ease-in-out .14s infinite"><path d="M362 208 q11 13 8 22 q-2 8 -8 11 q-6 -3 -8 -11 q-2 -9 8 -22 z" style="fill:var(--fire-1)"></path></g>
+      <g data-kd="fire" style="transform-origin:464px 306px;animation:kdFlick .28s ease-in-out .1s infinite"><path d="M464 282 q14 16 10 28 q-2 9 -10 13 q-8 -4 -10 -13 q-3 -12 10 -28 z" style="fill:var(--fire-1)"></path><path d="M464 295 q7 9 5 15 q-1 5 -5 7 q-4 -2 -5 -7 q-2 -6 5 -15 z" style="fill:var(--fire-2)"></path></g>
+      <g data-kd="fire" style="transform-origin:648px 372px;animation:kdFlick .31s ease-in-out .2s infinite"><path d="M648 348 q14 16 10 28 q-2 9 -10 13 q-8 -4 -10 -13 q-3 -12 10 -28 z" style="fill:var(--fire-1)"></path><path d="M648 361 q7 9 5 15 q-1 5 -5 7 q-4 -2 -5 -7 q-2 -6 5 -15 z" style="fill:var(--fire-2)"></path></g>
+      <g data-kd="fire" style="transform-origin:353px 420px;animation:kdFlick .3s ease-in-out .16s infinite"><path d="M353 394 q15 17 10 30 q-2 10 -10 15 q-8 -5 -10 -15 q-3 -13 10 -30 z" style="fill:var(--fire-1)"></path><path d="M353 408 q7 9 5 17 q-1 6 -5 9 q-4 -3 -5 -9 q-2 -8 5 -17 z" style="fill:var(--fire-2)"></path></g>
+      <g data-kd="fire" style="transform-origin:600px 132px;animation:kdFlick .29s ease-in-out .16s infinite"><path d="M600 114 q10 12 7 21 q-1 7 -7 10 q-6 -3 -7 -10 q-2 -9 7 -21 z" style="fill:var(--fire-1)"></path></g>
     </g>
     <!-- burning village where the castle stood -->
     <g data-kd="shire">
@@ -158,11 +158,11 @@ export const STAGE_MARKUP = `<g data-kd="stage" transform="translate(0,52) scale
       <rect x="620" y="214" width="28" height="20" style="fill:var(--house)"></rect><path d="M616 214 l18 -14 l18 14 z" style="fill:var(--roof-2)"></path>
       <rect x="596" y="230" width="24" height="16" style="fill:var(--house)"></rect><path d="M593 230 l15 -11 l15 11 z" style="fill:var(--roof-2)"></path>
       <rect x="534" y="230" width="20" height="15" style="fill:var(--house-2)"></rect><path d="M531 230 l13 -10 l13 10 z" style="fill:var(--roof)"></path>
-      <ellipse cx="599" cy="158" rx="15" ry="30" style="fill:var(--smoke);transform-origin:599px 182px;animation:kdSmoke 3.2s ease-in .3s infinite"></ellipse>
-      <ellipse cx="606" cy="158" rx="12" ry="24" style="fill:var(--smoke);transform-origin:606px 182px;animation:kdSmoke 4.0s ease-in 1.4s infinite"></ellipse>
-      <ellipse cx="560" cy="172" rx="12" ry="24" style="fill:var(--smoke);transform-origin:560px 194px;animation:kdSmoke 3.6s ease-in .8s infinite"></ellipse>
-      <g style="transform-origin:599px 186px;animation:kdFlick .29s ease-in-out infinite"><path d="M599 162 q14 16 10 28 q-2 9 -10 13 q-8 -4 -10 -13 q-3 -12 10 -28 z" style="fill:var(--fire-1)"></path><path d="M599 175 q7 9 5 15 q-1 5 -5 7 q-4 -2 -5 -7 q-2 -6 5 -15 z" style="fill:var(--fire-2)"></path></g>
-      <g style="transform-origin:563px 198px;animation:kdFlick .27s ease-in-out .15s infinite"><path d="M563 178 q11 13 8 22 q-2 8 -8 11 q-6 -3 -8 -11 q-2 -9 8 -22 z" style="fill:var(--fire-1)"></path></g>
+      <ellipse data-kd="smoke" cx="599" cy="158" rx="15" ry="30" style="fill:var(--smoke);transform-origin:599px 182px;animation:kdSmoke 3.2s ease-in .3s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="606" cy="158" rx="12" ry="24" style="fill:var(--smoke);transform-origin:606px 182px;animation:kdSmoke 4.0s ease-in 1.4s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="560" cy="172" rx="12" ry="24" style="fill:var(--smoke);transform-origin:560px 194px;animation:kdSmoke 3.6s ease-in .8s infinite"></ellipse>
+      <g data-kd="fire" style="transform-origin:599px 186px;animation:kdFlick .29s ease-in-out infinite"><path d="M599 162 q14 16 10 28 q-2 9 -10 13 q-8 -4 -10 -13 q-3 -12 10 -28 z" style="fill:var(--fire-1)"></path><path d="M599 175 q7 9 5 15 q-1 5 -5 7 q-4 -2 -5 -7 q-2 -6 5 -15 z" style="fill:var(--fire-2)"></path></g>
+      <g data-kd="fire" style="transform-origin:563px 198px;animation:kdFlick .27s ease-in-out .15s infinite"><path d="M563 178 q11 13 8 22 q-2 8 -8 11 q-6 -3 -8 -11 q-2 -9 8 -22 z" style="fill:var(--fire-1)"></path></g>
     </g>
     <!-- burning village over the knight's left shoulder -->
     <g data-kd="shire">
@@ -171,11 +171,11 @@ export const STAGE_MARKUP = `<g data-kd="stage" transform="translate(0,52) scale
       <rect x="1072" y="214" width="28" height="20" style="fill:var(--house)"></rect><path d="M1068 214 l18 -14 l18 14 z" style="fill:var(--roof-2)"></path>
       <rect x="1048" y="230" width="24" height="16" style="fill:var(--house)"></rect><path d="M1045 230 l15 -11 l15 11 z" style="fill:var(--roof-2)"></path>
       <rect x="988" y="230" width="20" height="15" style="fill:var(--house-2)"></rect><path d="M985 230 l13 -10 l13 10 z" style="fill:var(--roof)"></path>
-      <ellipse cx="1051" cy="158" rx="15" ry="30" style="fill:var(--smoke);transform-origin:1051px 182px;animation:kdSmoke 3.3s ease-in .5s infinite"></ellipse>
-      <ellipse cx="1058" cy="158" rx="12" ry="24" style="fill:var(--smoke);transform-origin:1058px 182px;animation:kdSmoke 4.1s ease-in 1.6s infinite"></ellipse>
-      <ellipse cx="1012" cy="172" rx="12" ry="24" style="fill:var(--smoke);transform-origin:1012px 194px;animation:kdSmoke 3.7s ease-in .9s infinite"></ellipse>
-      <g style="transform-origin:1051px 186px;animation:kdFlick .3s ease-in-out .1s infinite"><path d="M1051 162 q14 16 10 28 q-2 9 -10 13 q-8 -4 -10 -13 q-3 -12 10 -28 z" style="fill:var(--fire-1)"></path><path d="M1051 175 q7 9 5 15 q-1 5 -5 7 q-4 -2 -5 -7 q-2 -6 5 -15 z" style="fill:var(--fire-2)"></path></g>
-      <g style="transform-origin:1015px 198px;animation:kdFlick .28s ease-in-out .18s infinite"><path d="M1015 178 q11 13 8 22 q-2 8 -8 11 q-6 -3 -8 -11 q-2 -9 8 -22 z" style="fill:var(--fire-1)"></path></g>
+      <ellipse data-kd="smoke" cx="1051" cy="158" rx="15" ry="30" style="fill:var(--smoke);transform-origin:1051px 182px;animation:kdSmoke 3.3s ease-in .5s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="1058" cy="158" rx="12" ry="24" style="fill:var(--smoke);transform-origin:1058px 182px;animation:kdSmoke 4.1s ease-in 1.6s infinite"></ellipse>
+      <ellipse data-kd="smoke" cx="1012" cy="172" rx="12" ry="24" style="fill:var(--smoke);transform-origin:1012px 194px;animation:kdSmoke 3.7s ease-in .9s infinite"></ellipse>
+      <g data-kd="fire" style="transform-origin:1051px 186px;animation:kdFlick .3s ease-in-out .1s infinite"><path d="M1051 162 q14 16 10 28 q-2 9 -10 13 q-8 -4 -10 -13 q-3 -12 10 -28 z" style="fill:var(--fire-1)"></path><path d="M1051 175 q7 9 5 15 q-1 5 -5 7 q-4 -2 -5 -7 q-2 -6 5 -15 z" style="fill:var(--fire-2)"></path></g>
+      <g data-kd="fire" style="transform-origin:1015px 198px;animation:kdFlick .28s ease-in-out .18s infinite"><path d="M1015 178 q11 13 8 22 q-2 8 -8 11 q-6 -3 -8 -11 q-2 -9 8 -22 z" style="fill:var(--fire-1)"></path></g>
     </g>
   </svg>
   <!-- HORIZON + TRAY SHELF (design z3/z4; the game's tile tray sits over it) -->

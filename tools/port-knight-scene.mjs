@@ -83,6 +83,25 @@ let knight = svgInner(/<svg viewBox="0 0 240 340"/, 'knight');
   countryside = out.join('\n');
 }
 
+// Tag the burning: smoke columns and flame groups get data-kd handles so the
+// theme can fade them out when the dragon is slain (the kd-peace state —
+// Tucker's addition, not in the design doc).
+{
+  let smoke = 0;
+  countryside = countryside.replace(/<ellipse ([^>]*kdSmoke)/g, (m, rest) => {
+    smoke++;
+    return `<ellipse data-kd="smoke" ${rest}`;
+  });
+  if (smoke < 15) fail(`expected ≥15 smoke ellipses, tagged ${smoke}`);
+  let fire = 0;
+  countryside = countryside.replace(/<g style="(transform-origin:[^"]*kdFlick[^"]*)">/g, (m, style) => {
+    fire++;
+    return `<g data-kd="fire" style="${style}">`;
+  });
+  if (fire < 6) fail(`expected ≥6 flame groups, tagged ${fire}`);
+  console.log(`tagged ${smoke} smoke + ${fire} flame nodes`);
+}
+
 /* ---------------- dragon: bindings → handles ---------------- */
 
 dragon = replaceOnce(dragon,

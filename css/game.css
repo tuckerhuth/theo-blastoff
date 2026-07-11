@@ -61,6 +61,8 @@ body {
   position: fixed; inset: 0;
   overflow: hidden;
   background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, var(--sky-bottom) 100%);
+  /* sky heals gently when the palette changes (knight peace/round arc) */
+  transition: background 1.2s ease;
 }
 
 #scene { position: absolute; inset: 0; z-index: 1; }

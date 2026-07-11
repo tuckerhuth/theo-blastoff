@@ -185,6 +185,26 @@ function buildTower() {
   arrowEl = el('text', { x: 436, y: 172, 'font-size': 34, 'text-anchor': 'middle' }, svg);
 }
 
+// Peace over the kingdom (Tucker's addition, not in the design doc): when
+// the dragon is slain, every fire and smoke column fades out and a rainbow
+// blooms over the shires. Built here (not the generator) because it isn't
+// design markup. Inserted right after the countryside so it arcs behind the
+// dragon, knight and tray shelf; ends hide behind the tray.
+function buildRainbow() {
+  const stage = svg.querySelector('[data-kd="stage"]');
+  const countrySvg = stage.querySelector('svg'); // first nested svg = countryside
+  const g = el('g', { class: 'kd-rainbow', 'data-kd': 'rainbow' });
+  const colors = ['#ff6a5e', '#ffa94d', '#ffd93c', '#7ed957', '#57c1e8', '#a06ee0'];
+  colors.forEach((c, i) => {
+    const r = 660 - i * 14; // stage coords: center (600,980), top of arch ≈ y 320
+    el('path', {
+      d: `M ${600 - r} 980 A ${r} ${r} 0 0 1 ${600 + r} 980`,
+      style: `stroke:${c};stroke-width:14;fill:none`, opacity: 0.8,
+    }, g);
+  });
+  countrySvg.insertAdjacentElement('afterend', g);
+}
+
 // Glow the "active" rune (the segment just counted) like the design's
 // current-segment box-shadow. 0 clears it.
 function glowSlot(n) {
@@ -238,19 +258,30 @@ async function flightLoop(signal) {
     dragonOuter.style.transition = 'transform 4.2s linear';
     dragonOuter.style.transform = `translate(${x}px,${y}px) scale(0.4)`;
   };
+  // One 4.2s pass with two fire bursts while the dragon is OVER the shires
+  // (1.1s and 2.5s in — never at the off-screen edges). The design's demo
+  // fired per count, but its counts auto-ran every 1.25s; in the real game
+  // counts wait for the child, so the strafing itself carries the cadence.
+  const pass = async () => {
+    await sleep(1100); if (signal.aborted || dragonMode !== 'ambient') return;
+    fire();
+    await sleep(1400); if (signal.aborted || dragonMode !== 'ambient') return;
+    fire();
+    await sleep(1700);
+  };
   while (!signal.aborted) {
     if (dragonMode !== 'ambient') { await sleep(250); continue; }
     dragonRoam.style.transform = 'scaleX(-1)'; // flyDir 1: face right
     await sleep(40); if (signal.aborted) return;
     if (dragonMode !== 'ambient') continue;
     glide(850, 14);
-    await sleep(4200); if (signal.aborted) return;
+    await pass(); if (signal.aborted) return;
     if (dragonMode !== 'ambient') continue;
     dragonRoam.style.transform = 'scaleX(1)'; // flyDir -1: face left
     await sleep(40); if (signal.aborted) return;
     if (dragonMode !== 'ambient') continue;
     glide(-800, 56);
-    await sleep(4200);
+    await pass();
   }
 }
 
@@ -328,6 +359,18 @@ export const knightTheme = {
       .slot text { fill: rgba(255,255,255,.5); font-weight: 700; transition: fill .25s; }
       .slot.lit text { fill: var(--rune); }
       .slot.kd-cur .kd-slot-bg { filter: drop-shadow(0 0 6px var(--stone-glow)); }
+      /* smooth the palette heal (ember/twilight → meadow) so the land
+         appears to recover rather than snap; also gentles the round-start
+         palette change. Fill-only, cheap (no layout). */
+      [data-kd="stage"] rect, [data-kd="stage"] path, [data-kd="stage"] ellipse, [data-kd="stage"] circle, [data-kd="stage"] line { transition: fill .9s ease; }
+      .kd-rainbow { opacity: 0; transition: opacity 1s ease .15s; }
+      .kd-peace .kd-rainbow { opacity: 1; }
+      /* fire/smoke carry their flicker as an INLINE animation; only an
+         !important author rule outranks a running CSS animation, so the
+         extinguish needs it (a plain opacity:0 loses to the keyframe). */
+      .kd-peace [data-kd="smoke"], .kd-peace [data-kd="fire"] {
+        animation: none !important; opacity: 0 !important; transition: opacity .7s ease;
+      }
     `;
 
     // The whole world, verbatim from the design (see knight-scene.js).
@@ -342,6 +385,7 @@ export const knightTheme = {
     swordJab = q('swordJab'); sparkEl = q('spark');
     for (let n = 1; n <= 10; n++) armor[n] = q(`armor${n}`);
 
+    buildRainbow(); // hidden until the kingdom is at peace (dragon slain)
     buildTower();
     fitView(); // now that the tower exists, apply the aspect-dependent x
     applyPalette(variant);
@@ -373,6 +417,7 @@ export const knightTheme = {
     setWince(false);
     setSpark(0, 0.4);
     jabSword(0);
+    svg.classList.remove('kd-peace'); // the shires burn again next round
     setDragonMode('ambient'); // snaps offstage; the flight loop resumes passes
     glowSlot(0);
     for (let n = 1; n <= 10; n++) {
@@ -480,6 +525,12 @@ export const knightTheme = {
     deadEye.style.opacity = 1;
     setWince(false);
     setDragonMode('dead'); // translate/rotate fall + fade, design verbatim
+    // Peace over the kingdom: as the dragon falls, the fires and smoke die
+    // out, the land heals to the verdant MEADOW palette (an ember/twilight
+    // sky under a rainbow reads wrong — Tucker), and a rainbow blooms. The
+    // next round's setVariant() restores the mission's day→dusk→night arc.
+    svg.classList.add('kd-peace');
+    applyPalette(0);
 
     const rect = svg.getBoundingClientRect();
     confettiBurst(rect.left + rect.width * 0.66, rect.top + rect.height * 0.42, 80);

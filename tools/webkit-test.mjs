@@ -127,6 +127,15 @@ await scenario('knight: full round by taps → VICTORY', async () => {
   try {
     const done = await playUntilBanner();
     if (!done) return false;
+    // Peace over the kingdom: launch() adds .kd-peace to the scene svg as the
+    // dragon falls (fires/smoke fade, rainbow blooms). It's added shortly
+    // AFTER the banner (launch runs post-banner) — poll for it.
+    const tp = Date.now(); let peace = false;
+    while (Date.now() - tp < 12000) {
+      if (await page.evaluate(() => document.querySelector('#scene svg')?.classList.contains('kd-peace'))) { peace = true; break; }
+      await sleep(400);
+    }
+    if (!peace) return false;
     // launches++ runs only after the full launch animation + praise audio
     // (~4-6s past the banner) — poll rather than guess the delay, same
     // lesson as "late levels reach a full count of 10" below.
@@ -158,10 +167,14 @@ await scenario('knight scene structure matches the design source', async () => {
     const smoke = [...svg.querySelectorAll('ellipse')]
       .filter((e) => (e.getAttribute('style') || '').includes('kdSmoke')).length;
     const handles = ['dragonOuter', 'dragonRoam', 'dragonWince', 'dragonTint', 'painEye',
-      'deadEye', 'fireBreath', 'swordJab', 'spark',
+      'deadEye', 'fireBreath', 'swordJab', 'spark', 'rainbow',
       ...Array.from({ length: 10 }, (_, i) => `armor${i + 1}`)]
       .every((k) => svg.querySelector(`[data-kd="${k}"]`));
-    return paths >= 130 && rects >= 75 && shires >= 6 && smoke >= 15 && handles;
+    // fire/smoke tagged for the kd-peace fade; rainbow present for victory
+    const taggedSmoke = svg.querySelectorAll('[data-kd="smoke"]').length;
+    const fire = svg.querySelectorAll('[data-kd="fire"]').length;
+    return paths >= 130 && rects >= 75 && shires >= 6 && smoke >= 15
+      && taggedSmoke >= 15 && fire >= 6 && handles;
   });
 });
 
