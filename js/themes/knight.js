@@ -86,7 +86,11 @@ const PALETTES = [
 // (dragon center ≈ stage 640,380 — inside the portrait crop, sword-range
 // from the knight, fly-height above the tray). Pose/flip/speed verbatim.
 const AMBIENT_HOME = 'translate(-800px,14px) scale(0.4)';
-const BATTLE_TRANSFORM = 'translate(140px,184px) scale(-0.75,0.75)';
+// Battle: hover facing the knight. Shifted left of the design's 140 so the
+// dragon's dense body/head sit centered between the tower and the knight —
+// the bounding box already centered, but the head reaches right toward the
+// knight and the sparse tail pads the left, so it READ knight-heavy (Tucker).
+const BATTLE_TRANSFORM = 'translate(70px,184px) scale(-0.75,0.75)';
 const DEAD_TRANSFORM = 'translate(90px,560px) scale(0.85) rotate(-55deg)';
 
 let svg;
@@ -187,22 +191,27 @@ function buildTower() {
 
 // Peace over the kingdom (Tucker's addition, not in the design doc): when
 // the dragon is slain, every fire and smoke column fades out and a rainbow
-// blooms over the shires. Built here (not the generator) because it isn't
-// design markup. Inserted right after the countryside so it arcs behind the
-// dragon, knight and tray shelf; ends hide behind the tray.
+// blooms across the sky. Built here (not the generator) because it isn't
+// design markup. Inserted BEFORE the countryside so the hills and villages
+// occlude its legs — it reads as arcing across the sky BEHIND the landscape,
+// not painted over the world (Tucker). A big radius keeps the arch high and
+// wide; the lower thirds vanish behind the hills.
 function buildRainbow() {
   const stage = svg.querySelector('[data-kd="stage"]');
   const countrySvg = stage.querySelector('svg'); // first nested svg = countryside
   const g = el('g', { class: 'kd-rainbow', 'data-kd': 'rainbow' });
   const colors = ['#ff6a5e', '#ffa94d', '#ffd93c', '#7ed957', '#57c1e8', '#a06ee0'];
   colors.forEach((c, i) => {
-    const r = 660 - i * 14; // stage coords: center (600,980), top of arch ≈ y 320
+    // big radius, low center: the arch top clears the far-hill ridge into the
+    // blue sky while the legs stay low (hidden behind the hills). center
+    // (600,1040), arch top ≈ y 130.
+    const r = 910 - i * 16;
     el('path', {
-      d: `M ${600 - r} 980 A ${r} ${r} 0 0 1 ${600 + r} 980`,
-      style: `stroke:${c};stroke-width:14;fill:none`, opacity: 0.8,
+      d: `M ${600 - r} 1040 A ${r} ${r} 0 0 1 ${600 + r} 1040`,
+      style: `stroke:${c};stroke-width:16;fill:none`, opacity: 0.85,
     }, g);
   });
-  countrySvg.insertAdjacentElement('afterend', g);
+  countrySvg.insertAdjacentElement('beforebegin', g);
 }
 
 // Glow the "active" rune (the segment just counted) like the design's

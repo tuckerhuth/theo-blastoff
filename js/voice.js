@@ -343,6 +343,27 @@ if (typeof window !== 'undefined') {
   window.__hearLog = auditLog;
 }
 
+// Chrome's SpeechRecognition is network-backed and ends itself on silence
+// (no-speech) — and a start() right after end can throw InvalidStateError.
+// The old code restarted once with no retry, so a single throw left the mic
+// silently dead until the next unrelated start(): the "long, inconsistent
+// delay after the final hint" Tucker hit (a long silence cycles end→restart,
+// and one failed restart kills it). `starting` dedups in-flight starts; the
+// watchdog below guarantees recovery within ~1s no matter how it died.
+let starting = false;
+
+function safeStart(reason) {
+  if (!rec || !store.data.settings.micOn || listening || starting) return;
+  starting = true;
+  try {
+    rec.start();
+    voiceAudit({ rec: 'start', reason });
+  } catch (err) {
+    starting = false; // benign if already running; the watchdog retries otherwise
+    voiceAudit({ rec: 'start-fail', reason, note: String(err && err.name || err).slice(0, 40) });
+  }
+}
+
 function create() {
   rec = new SR();
   rec.continuous = true;
@@ -350,33 +371,53 @@ function create() {
   rec.maxAlternatives = 3;
   rec.lang = 'en-US';
   rec.onresult = handleResults;
-  rec.onstart = () => { recGen++; listening = true; updateDot(); };
+  rec.onstart = () => { recGen++; starting = false; listening = true; voiceAudit({ rec: 'live' }); updateDot(); };
   rec.onend = () => {
-    listening = false; updateDot();
-    // The API stops itself constantly; keep it alive while the mode is on.
-    if (store.data.settings.micOn) setTimeout(() => { try { rec.start(); } catch { /* already starting */ } }, 300);
+    listening = false; starting = false; updateDot();
+    voiceAudit({ rec: 'end' });
+    // Restart fast; the watchdog is the backstop if this throw-and-dies.
+    if (store.data.settings.micOn) setTimeout(() => safeStart('onend'), 150);
   };
   rec.onerror = (e) => {
+    starting = false;
+    voiceAudit({ rec: 'error', note: e.error });
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
       store.data.settings.micOn = false; // permission denied — turn the mode off
       store.save();
       listening = false;
+      stopWatchdog();
       caption('🎤 mic blocked — allow it in browser settings, then re-enable in ⚙️');
       updateDot();
     } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
       caption(`🎤 speech error: ${e.error}`); // e.g. Chrome's routine 'network' hiccups
     }
+    // no-speech/aborted/network just end the session; onend + watchdog recover.
   };
 }
+
+// Keeps the recognizer alive whenever the mode is on — including WHILE the
+// game speaks (muted), so it's already warm when the child answers. Recovers
+// any death (thrown restart, swallowed error) within one tick. A 1s interval,
+// not a rAF — negligible cost, and only while mic is on.
+let watchdog = null;
+function startWatchdog() {
+  if (watchdog || !SR) return;
+  watchdog = setInterval(() => {
+    if (store.data.settings.micOn && !listening && !starting) safeStart('watchdog');
+  }, 1000);
+}
+function stopWatchdog() { clearInterval(watchdog); watchdog = null; }
 
 // Call whenever settings.micOn may have changed (toggle, session start).
 export function voiceRefresh() {
   if (!SR) return;
   if (store.data.settings.micOn) {
     if (!rec) create();
-    if (!listening) { try { rec.start(); } catch { /* already started */ } }
-  } else if (rec && listening) {
-    try { rec.stop(); } catch { /* already stopped */ }
+    startWatchdog();
+    safeStart('refresh');
+  } else if (rec) {
+    stopWatchdog();
+    if (listening) { try { rec.stop(); } catch { /* already stopped */ } }
   }
 }
 

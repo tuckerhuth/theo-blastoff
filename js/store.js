@@ -3,7 +3,7 @@
 const KEY = 'blastoff-theo-v1';
 
 // Shown in the parent panel; keep in lockstep with VERSION in sw.js.
-export const GAME_VERSION = 'v28';
+export const GAME_VERSION = 'v29';
 
 const DEFAULTS = {
   theme: 'rocket',                   // last-used game world; picked on the title screen

@@ -299,15 +299,15 @@ export const ui = {
     const log = voiceAuditLog();
     if (!log.length) return; // mic never used on this device — say nothing
     const h = document.createElement('h3');
-    h.textContent = '🎤 Voice log (newest first · ▶ = game clip · 🔇 = game was speaking)';
+    h.textContent = '🎤 Voice log (newest first · ▶ = game clip · 🎙 = recognizer · 🔇 = game was speaking)';
     wrap.appendChild(h);
     const pre = document.createElement('pre');
     pre.className = 'voicelog';
-    pre.textContent = log.slice(-60).reverse().map((e) => {
+    pre.textContent = log.slice(-80).reverse().map((e) => {
       const time = new Date(e.t).toLocaleTimeString();
-      return e.clip !== undefined
-        ? `${time}  ▶ ${e.clip}`
-        : `${time}  “${e.heard}”${e.muted ? ' 🔇' : ''} → ${e.verdict}`;
+      if (e.rec !== undefined) return `${time}  🎙 ${e.rec}${e.note ? ` (${e.note})` : ''}${e.reason ? ` ·${e.reason}` : ''}`;
+      if (e.clip !== undefined) return `${time}  ▶ ${e.clip}`;
+      return `${time}  “${e.heard}”${e.muted ? ' 🔇' : ''} → ${e.verdict}`;
     }).join('\n');
     wrap.appendChild(pre);
     const copy = document.createElement('button');
