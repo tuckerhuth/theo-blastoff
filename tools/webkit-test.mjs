@@ -19,7 +19,7 @@ const KEY = 'blastoff-theo-v1';
 const results = [];
 const consoleErrors = [];
 const pageErrors = [];
-let bannerWord = 'BLAST'; // per-theme finale word; knight scenarios swap this to 'VICTORY'
+let bannerWord = 'BLAST'; // per-theme finale word; knight scenarios swap this to 'Victory'
 
 const browser = ENGINE === 'chromium'
   ? await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch())
@@ -123,7 +123,7 @@ await scenario('knight: full round by taps → VICTORY', async () => {
   const dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
   if (dataTheme !== 'knight') return false;
   await tapSel('#title');
-  bannerWord = 'VICTORY';
+  bannerWord = 'Victory';
   try {
     const done = await playUntilBanner();
     if (!done) return false;

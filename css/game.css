@@ -7,8 +7,29 @@
   font-display: swap;
   src: url('../assets/fonts/fredoka-latin.woff2') format('woff2');
 }
+/* Medieval display face for the Knight & Dragon theme (design spec uses
+   Cinzel Decorative for the numeral, banner, tower runes and tiles). Bundled
+   for offline PWA use; applied only where --display-font is switched. */
+@font-face {
+  font-family: 'Cinzel Decorative';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/cinzel-decorative-700-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cinzel Decorative';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('../assets/fonts/cinzel-decorative-900-latin.woff2') format('woff2');
+}
 
 :root {
+  /* the numeral/banner/tile/tower typeface; a theme may switch it (knight →
+     Cinzel Decorative). Chrome reads it so a theme's look reaches the shared
+     HUD, not just its SVG scene. */
+  --display-font: 'Fredoka', ui-rounded, -apple-system, system-ui, sans-serif;
   --sky-top: #0b0f33;
   --sky-mid: #221850;
   --sky-bottom: #43307c;
@@ -85,6 +106,7 @@ body {
 .tile.solo { width: clamp(140px, 30vmin, 340px); }
 
 .tile .numeral {
+  font-family: var(--display-font);
   font-size: 11vmin;
   line-height: 1;
   text-shadow: 0 .5vmin 0 rgba(0,0,0,.2);
@@ -154,6 +176,7 @@ body {
   top: max(3vh, env(safe-area-inset-top)); left: 50%;
   transform: translateX(-50%);
   z-index: 15;
+  font-family: var(--display-font);
   font-size: 17vmin;
   font-weight: 700;
   color: #fff;
@@ -245,13 +268,26 @@ body {
   top: 38%; left: 50%;
   transform: translate(-50%, -50%);
   z-index: 40;
+  font-family: var(--display-font);
   font-size: 11vmin;
   font-weight: 700;
   color: var(--star-gold);
+  text-align: center;
   text-shadow: 0 0 4vmin rgba(255,217,74,.7), 0 1vmin 0 rgba(0,0,0,.35);
   white-space: nowrap;
   pointer-events: none;
   animation: banner-in .5s cubic-bezier(.2,1.8,.4,1);
+}
+/* Two-line finale ("Victory!" + "The wyrm is slayne") — the design's title
+   is heavier with a dark stroke, the subtitle smaller and letter-spaced. */
+#banner .banner-title { font-weight: 900; display: block; }
+#banner .banner-sub {
+  display: block;
+  margin-top: 2vmin;
+  font-size: 4vmin;
+  font-weight: 700;
+  letter-spacing: .3vmin;
+  color: var(--banner-sub, currentColor);
 }
 @keyframes banner-in { from { transform: translate(-50%,-50%) scale(0); } }
 

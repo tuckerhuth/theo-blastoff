@@ -2,7 +2,7 @@
 // (registered only on the deployed site — see main.js).
 
 // Keep in lockstep with GAME_VERSION in js/store.js.
-const VERSION = 'blastoff-v25';
+const VERSION = 'blastoff-v26';
 
 const PRECACHE = [
   '.',
@@ -12,6 +12,8 @@ const PRECACHE = [
   'js/store.js', 'js/tasks.js', 'js/levels.js', 'js/fx.js', 'js/voice.js',
   'js/themes/index.js', 'js/themes/rocket.js', 'js/themes/knight.js', 'js/themes/knight-scene.js',
   'assets/fonts/fredoka-latin.woff2',
+  'assets/fonts/cinzel-decorative-700-latin.woff2',
+  'assets/fonts/cinzel-decorative-900-latin.woff2',
   'manifest.webmanifest',
   ...['n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
       'after1','after2','after3','after4','after5','after6','after7','after8','after9','after10',

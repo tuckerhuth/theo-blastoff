@@ -265,9 +265,14 @@ function tintDragon() {
     `sepia(${dmg.toFixed(2)}) saturate(${(1 + dmg * 4).toFixed(2)}) hue-rotate(${Math.round(-dmg * 34)}deg) brightness(${(1 - dmg * 0.12).toFixed(2)})`;
 }
 
+// The design's medieval display face, applied to the shared HUD chrome
+// (big number, banner, tiles, tower runes) while this theme is mounted.
+const DISPLAY_FONT = "'Cinzel Decorative', Georgia, serif";
+
 export const knightTheme = {
   name: 'knight',
-  strings: { finaleBanner: 'VICTORY!' },
+  // Two-line finale, verbatim from the design's bMap.win.
+  strings: { finaleBanner: { title: 'Victory!', subtitle: 'The wyrm is slayne' } },
   numberColors() { return numColors(); },
 
   mount(sceneEl) {
@@ -284,12 +289,15 @@ export const knightTheme = {
     fitView();
     window.addEventListener('resize', fitView, { signal: mountAbort.signal });
 
+    // Medieval face for the whole theme — SVG tower runes here, and the HTML
+    // chrome (numeral/banner/tiles) via --display-font, set below.
+    document.documentElement.style.setProperty('--display-font', DISPLAY_FONT);
     const style = el('style', {}, svg);
     style.textContent = `
-      text { font-family: 'Fredoka', ui-rounded, sans-serif; }
+      text { font-family: ${DISPLAY_FONT}; }
       ${KEYFRAMES}
       .slot rect { fill: var(--stone-top); stroke: var(--stone-edge); stroke-width: 2; transition: fill .25s; }
-      .slot text { fill: rgba(255,255,255,.55); font-weight: 600; transition: fill .25s; }
+      .slot text { fill: rgba(255,255,255,.55); font-weight: 700; transition: fill .25s; }
       .slot.lit text { fill: var(--rune); }
     `;
 
@@ -324,6 +332,7 @@ export const knightTheme = {
     root.style.removeProperty('--sky-top');
     root.style.removeProperty('--sky-mid');
     root.style.removeProperty('--sky-bottom');
+    root.style.removeProperty('--display-font'); // back to Fredoka for the next theme
   },
 
   reset(empty = false) {

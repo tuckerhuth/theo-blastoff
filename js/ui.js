@@ -97,9 +97,25 @@ export const ui = {
     }
   },
 
+  // text: a string, or { title, subtitle } for a two-line finale (the
+  // knight theme's "Victory!" / "The wyrm is slayne").
   banner(text, ms = 2200) {
     const b = this.els.banner;
-    b.textContent = text;
+    if (text && typeof text === 'object') {
+      b.replaceChildren();
+      const t = document.createElement('span');
+      t.className = 'banner-title';
+      t.textContent = text.title;
+      b.appendChild(t);
+      if (text.subtitle) {
+        const s = document.createElement('span');
+        s.className = 'banner-sub';
+        s.textContent = text.subtitle;
+        b.appendChild(s);
+      }
+    } else {
+      b.textContent = text;
+    }
     b.classList.remove('hidden');
     clearTimeout(this._bannerT);
     this._bannerT = setTimeout(() => b.classList.add('hidden'), ms);
