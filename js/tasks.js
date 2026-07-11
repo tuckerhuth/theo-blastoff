@@ -1,11 +1,12 @@
 // Sequence tasks. Today: numbers 1–10, up and down. The engine only sees
 // generic "steps with choices", so letters/shapes/etc. can slot in later.
 //
-// Level semantics (solo tiles are tutorial-only):
+// Level semantics (solo tiles are tutorial-only; every real choice is 3 tiles
+// so lazy "tap until it's right" is never a 50/50 coin flip):
 //   0  [target]                      tutorial / countdown anchor
-//   1  [target, far]                 e.g. 4 vs 9
-//   2  [target, near]                e.g. 7 vs 8 — the real confusions
-//   3  [target, near, far]
+//   1  [target, far, far]            two clearly-distant decoys — easiest
+//   2  [target, near, far]           one tempting near, one far
+//   3  [target, near, near]          two tempting near decoys
 //   4  [target, near, near]          full discrimination
 
 import { store } from './store.js';
@@ -17,7 +18,7 @@ export function makeSequence(dir, len) {
   return seq;
 }
 
-function shuffle(a) {
+export function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
@@ -49,15 +50,19 @@ export function makeStep({ dir, target, prev, level }) {
 
   let choices;
   if (level <= 0) {
-    choices = [target];
+    choices = [target];                         // tutorial / countdown anchor
   } else if (level === 1) {
-    choices = [target, pickDistractor(target, weak ? 'near' : 'far')];
+    // easiest real step: 3 tiles, both decoys far — unless this transition is
+    // weak, then slip in the tempting near one he keeps missing.
+    const far = pickDistractor(target, 'far');
+    const second = weak ? pickDistractor(target, 'near', [far])
+                        : pickDistractor(target, 'far', [far]);
+    choices = [target, far, second];
   } else if (level === 2) {
-    choices = [target, pickDistractor(target, 'near')];
-  } else if (level === 3) {
     const near = pickDistractor(target, 'near');
     choices = [target, near, pickDistractor(target, 'far', [near])];
   } else {
+    // levels 3–4: full discrimination — two tempting near decoys
     const near = pickDistractor(target, 'near');
     choices = [target, near, pickDistractor(target, 'near', [near])];
   }

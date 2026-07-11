@@ -39,3 +39,4 @@ onemore|One more launch?
 alldone|Great flying, Captain Theo! See you next time!
 taptoplay|Tap to play!
 allaboard|All aboard!
+notquite|No, not

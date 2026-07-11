@@ -118,6 +118,41 @@ await scenario('start', async () => {
 
 await scenario('full round by taps → BLAST OFF', () => playUntilBanner());
 
+await scenario('min 3 tiles + wrong tap locks input, then the answer lands', async () => {
+  await fresh({ seqLen: 4 }); // levelUp 1 → every real choice is now a 3-tile step
+  await tapSel('#title');
+  await page.waitForSelector('.tile', { timeout: 8000 });
+  await sleep(300);
+  const info = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('.tile')];
+    const lit = [...document.querySelectorAll('#scene .slot.lit')].map(s => +s.id.slice(4));
+    const expected = lit.length ? Math.max(...lit) + 1 : 1; // build direction
+    const correct = tiles.findIndex(t => +t.dataset.n === expected);
+    const wrong = tiles.findIndex((t, i) => i !== correct && +t.dataset.n !== expected);
+    return { count: tiles.length, correct, wrong };
+  });
+  if (info.count < 3) return false;                 // MIN 3 TILES — no 50/50 coin flip
+  if (info.correct < 0 || info.wrong < 0) return false;
+  const litBefore = (await gameState()).lit.length;
+  const tap = (i) => (TOUCH ? page.tap(`.tile >> nth=${i}`) : page.click(`.tile >> nth=${i}`));
+  // a wrong tap locks input (~600ms). A correct tap DURING the lock is ignored —
+  // and it's past the 90ms debounce, so this proves the lock, not the debounce.
+  await tap(info.wrong);
+  await sleep(150);
+  await tap(info.correct);
+  await sleep(150);
+  if ((await gameState()).lit.length !== litBefore) return false; // lock failed to hold
+  // the lock lifts + the tiles reshuffle; the correct answer then lands (poll —
+  // headless timers throttle, so don't guess the exact moment the lock releases)
+  const t0 = Date.now();
+  while (Date.now() - t0 < 8000) {
+    await answerOnce();
+    await sleep(400);
+    if ((await gameState()).lit.length >= litBefore + 1) return true;
+  }
+  return false;
+});
+
 await scenario('knight: full round by taps → VICTORY', async () => {
   await fresh({ theme: 'knight' });
   const dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));

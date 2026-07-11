@@ -6,7 +6,11 @@
 
 import { store } from './store.js';
 
-const DEBOUNCE_MS = 260;
+// Just enough to swallow one physical tap's double-fire. It used to be 260ms,
+// which silently dropped a fast *correct* tap right after a wrong one — the
+// "I pressed the right answer and nothing happened" bug. Real pacing now comes
+// from the wrong-tap lockout in engine.js.
+const DEBOUNCE_MS = 90;
 let lastTap = 0;
 
 // The currently answerable step. null when the game is busy animating.

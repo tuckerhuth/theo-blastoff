@@ -2,7 +2,7 @@
 // (registered only on the deployed site — see main.js).
 
 // Keep in lockstep with GAME_VERSION in js/store.js.
-const VERSION = 'blastoff-v29';
+const VERSION = 'blastoff-v30';
 
 const PRECACHE = [
   '.',
@@ -19,7 +19,7 @@ const PRECACHE = [
       'after1','after2','after3','after4','after5','after6','after7','after8','after9','after10',
       'hello','countup','countdown','whatnext','whatfirst','countingup','countingdown',
       'watchme','yourturn','ready',
-      'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay','allaboard']
+      'blastoff','great1','great2','great3','mission','onemore','alldone','taptoplay','allaboard','notquite']
     .map(n => `assets/voice/${n}.m4a`),
   ...['hello','countdown','allaboard','blastoff','great1','onemore','alldone']
     .map(n => `assets/voice/knight/${n}.m4a`),

@@ -6,7 +6,7 @@
 import { store } from './store.js';
 import { initAudio, speak, hushSpeech, numClip, sfx } from './audio.js';
 import { setTargets, clearTargets } from './input.js';
-import { makeSequence, makeStep } from './tasks.js';
+import { makeSequence, makeStep, shuffle } from './tasks.js';
 import { roundPlan, afterPhase, afterRound } from './levels.js';
 import { ui, STICKERS } from './ui.js';
 import { confettiBurst } from './fx.js';
@@ -82,7 +82,7 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
       }, GAP_PROMPT);
     };
 
-    const onPick = (i) => {
+    const onPick = (i, viaVoice = false) => {
       if (done) return;
       const correct = solo || i === step.correctIndex;
       if (correct) {
@@ -99,23 +99,40 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
         else voiceClearExpect();
         ui.ghostHide();
         sfx.press();
-        // No echo of the counted number — while he's counting, the game
-        // stays out of the way (thunks/ticks carry the rhythm); the number
-        // is only ever spoken by the idle hints after a real gap.
+        // Say the number the instant a tile is tapped — immediate, unambiguous
+        // confirmation (a tap-first kid, and the tablet has no mic). NOT via
+        // mic: there he already said the number himself.
+        if (!viaVoice) speak([numClip(target)]);
         const burst = voiceQueueSize() > 0;
         const el = correctEl();
         if (el.classList.contains('tile')) ui.feedback(el, 'correct-pop');
-        setTimeout(() => resolve(misses === 0), burst ? 0 : 320);
+        setTimeout(() => resolve(misses === 0), burst ? 0 : 150);
       } else {
         misses++;
+        clearIdle();               // stop the hint ladder during the lock (re-armed after the reshuffle)
+        clearTargets();            // lock input during the correction — no machine-gunning
         sfx.softNo();
         ui.feedback(els[i], 'wiggle');
-        if (misses === 2) ui.feedback(correctEl(), 'pulse');
-        if (misses >= 3) {
-          ui.feedback(correctEl(), 'glow');
-          els.forEach((e, j) => { if (j !== step.correctIndex) ui.feedback(e, 'dim'); });
-        }
-        armIdle();
+        // Say which number he actually pressed ("No, not seven") — warm, and
+        // it doubles as a number-recognition beat.
+        speak(['notquite', numClip(step.choices[i])]);
+        // A wrong tap costs a short pause, then the tiles reshuffle POSITIONS
+        // (same numbers) so tapping the same spot can't win. Escalating help
+        // comes later than before, so spraying isn't rewarded on tap 3.
+        setTimeout(() => {
+          if (done) return; // answered by voice during the lock — nothing to do
+          shuffle(step.choices);
+          step.correctIndex = step.choices.indexOf(target);
+          els = ui.showTiles(step.choices, onPick);
+          setTargets(els, onPick, { allowAnywhere: solo });
+          if (misses >= 4) {
+            ui.feedback(correctEl(), 'glow');
+            els.forEach((e) => { if (e !== correctEl()) ui.feedback(e, 'dim'); });
+          } else if (misses >= 3) {
+            ui.feedback(correctEl(), 'pulse');
+          }
+          armIdle();
+        }, 600);
       }
     };
 
@@ -133,7 +150,7 @@ function doStep({ dir, target, prev, step, ghost = false, provisionalNext = null
     // Saying the right number out loud counts too (parent-toggled, additive).
     voiceExpect(target, () => {
       sfx.chime(); // extra sparkle: he SAID it
-      onPick(solo ? 0 : step.correctIndex);
+      onPick(solo ? 0 : step.correctIndex, true); // viaVoice — don't echo the number back
     }, dir === 'up' ? 1 : -1);
 
     if (ghost) {
@@ -187,10 +204,12 @@ async function runPhase(dir, plan, { tutorial = false, nextPhase = null } = {}) 
       theme.markCounted(target);
       ui.setBigNum(target, { solo: false });
       sfx.thunk();
+      // Fire-and-forget the crate flight: the tower + numeral already updated
+      // at acceptance (above), so the next question arms immediately instead
+      // of waiting ~1s for the animation (which read to Theo as the game being
+      // slow to take his answer). Phase end still awaits every crate below.
       const burst = voiceQueueSize() > 0;
-      const load = theme.loadCrate(target, plan.len, burst);
-      anims.push(load);
-      if (!burst) await load; // relaxed pace keeps the old build rhythm
+      anims.push(theme.loadCrate(target, plan.len, burst));
     } else {
       theme.tickCountdown(target, plan.len);
       sfx.tick(target);
