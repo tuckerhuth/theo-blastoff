@@ -132,10 +132,29 @@ function applyPalette(i) {
   }
 }
 
+// Tower x — Tucker (July 11): in landscape the column moves far left, clear
+// of the burning shires and the dragon-vs-knight battle sightline. Portrait
+// keeps rocket's centered x: the portrait crop window starts at x=280, so a
+// far-left tower would fall outside it on the iPad (the primary device).
+const TOWER_X = 150;
+const TOWER_X_PORTRAIT = 400;
+
+function layoutTower(x) {
+  if (!railL) return; // fitView can run before the tower exists
+  railL.setAttribute('x', x);
+  railR.setAttribute('x', x + 62);
+  for (let n = 1; n <= 10; n++) {
+    slots[n].querySelector('rect').setAttribute('x', x + 8);
+    slots[n].querySelector('text').setAttribute('x', x + 36);
+  }
+  arrowEl.setAttribute('x', x + 36);
+}
+
 function buildTower() {
-  // Verbatim geometry/behavior from rocket.js — the tests assert this shape.
-  // Drawn AFTER the stage markup so ambient fly-bys pass BEHIND the slots
-  // (the design keeps its meter above the dragon too).
+  // Slot/rail/arrow geometry verbatim from rocket.js (the tests assert this
+  // shape); only the x offset is themed — see layoutTower. Drawn AFTER the
+  // stage markup so ambient fly-bys pass BEHIND the slots (the design keeps
+  // its meter above the dragon too).
   railL = el('rect', { x: 400, y: 185, width: 10, height: 375, style: 'fill:var(--castle-2)' }, svg);
   railR = el('rect', { x: 462, y: 185, width: 10, height: 375, style: 'fill:var(--castle-2)' }, svg);
   for (let n = 1; n <= 10; n++) {
@@ -258,7 +277,9 @@ export const knightTheme = {
     svg = el('svg', { viewBox: '0 0 1000 700', preserveAspectRatio: 'xMidYMax slice', 'data-theme': 'knight' }, null);
     sceneEl.appendChild(svg);
     const fitView = () => {
-      svg.setAttribute('viewBox', innerWidth / innerHeight < 0.85 ? '280 0 660 700' : '0 0 1000 700');
+      const portrait = innerWidth / innerHeight < 0.85;
+      svg.setAttribute('viewBox', portrait ? '280 0 660 700' : '0 0 1000 700');
+      layoutTower(portrait ? TOWER_X_PORTRAIT : TOWER_X);
     };
     fitView();
     window.addEventListener('resize', fitView, { signal: mountAbort.signal });
@@ -285,6 +306,7 @@ export const knightTheme = {
     for (let n = 1; n <= 10; n++) armor[n] = q(`armor${n}`);
 
     buildTower();
+    fitView(); // now that the tower exists, apply the aspect-dependent x
     applyPalette(variant);
     flightLoop(mountAbort.signal);
 

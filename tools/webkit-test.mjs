@@ -349,6 +349,49 @@ await scenario('voice hint echo: game\'s own number blocked, Theo\'s repeat land
   return litReaches(5, 8000);
 });
 
+await scenario('voice echo finals: muted-born utterance blocked, fresh one instant', async () => {
+  // The July 11 playtest sequence, verbatim: the hint's speaker echo posts
+  // its FINAL transcript ~1s after the clip ends — after the unmute — and
+  // must stay blocked because its UTTERANCE began during the speech; the
+  // child's answer is a fresh utterance and must land with NO cooldown at
+  // all (v24's post-end time windows ate real answers here).
+  await fresh({ seqLen: 5 });
+  await tapSel('#title');
+  await page.waitForSelector('.tile', { timeout: 8000 });
+  await sleep(200);
+  let s = await gameState();
+  const litReaches = async (n, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms && s.lit.length < n) { await sleep(300); s = await gameState(); }
+    return s.lit.length >= n;
+  };
+  for (const w of ['one', 'two', 'three', 'four']) {
+    await page.evaluate((w) => { window.__hear(w); }, w);
+  }
+  if (!(await litReaches(4, 15000))) return false;
+
+  // hint plays "five"; the echo's interim arrives mid-clip on utterance echo:1
+  const mutedAt = await page.evaluate(() => {
+    window.__speak(['n5']);
+    window.__hear('five', 'echo:1');
+    return window.__voiceMuted();
+  });
+  if (!mutedAt) return false;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 6000 && await page.evaluate(() => window.__voiceMuted())) await sleep(100);
+  if (await page.evaluate(() => window.__voiceMuted())) return false;
+
+  // the echo's FINAL posts post-unmute on the SAME utterance → still blocked
+  await page.evaluate(() => { window.__hear('five', 'echo:1'); });
+  await sleep(700);
+  s = await gameState();
+  if (s.lit.length !== 4) return false; // the echo final answered the hint
+
+  // the child's answer — a NEW utterance — lands immediately
+  await page.evaluate(() => { window.__hear('five', 'child:1'); });
+  return litReaches(5, 8000);
+});
+
 await scenario(TOUCH ? 'gear: touch hold (0.7s no, 2.2s yes)' : 'gear: mouse click opens instantly', async () => {
   await fresh();
   if (!TOUCH) {

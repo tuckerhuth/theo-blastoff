@@ -180,21 +180,42 @@ const pending = [];            // numbers said ahead of the game: [{ n, t }]
 const PENDING_TTL = 4000;
 let lastHintBlocked = false;   // set by extractChain, read for the audit verdict
 
+// Utterance identity (v25). The recognizer delivers interim and final
+// results of ONE utterance in the same result slot — so the speaker's echo
+// of a hint, whose utterance always BEGINS while the game is speaking,
+// stays identifiable even when its final transcript posts a second after
+// the unmute. Time windows can't make that call: an echo's late final and
+// the child's prompt answer both land 0.5–1.5s after the clip ends, and
+// v24's post-end windows ate Tucker's real answers (July 11 playtest log).
+// An utterance born muted is treated as game audio for its whole lifetime;
+// a fresh utterance is never time-blocked at all.
+const mutedBornUtt = new Set();
+function utteranceEcho(key) {
+  if (key === null) return false;
+  if (muted) {
+    mutedBornUtt.add(key);
+    if (mutedBornUtt.size > 40) mutedBornUtt.delete(mutedBornUtt.values().next().value);
+  }
+  return mutedBornUtt.has(key);
+}
+
 export function voiceQueueSize() { return pending.length; }
 
-// tokens → in-order chain-extending numbers (digit runs expanded)
-function extractChain(tokens, words) {
+// tokens → in-order chain-extending numbers (digit runs expanded).
+// gameVoice: this transcript is — or began during — the game's own speech.
+function extractChain(tokens, words, gameVoice) {
   if (wanted === null) return [];
   const accepted = [];
   // The game sometimes speaks the wanted number itself (rung-3 hint, the
   // countdown's solo prompts) — its own echo must not answer the question.
-  // Blocked while that number is part of the speech now playing (stamped
-  // since this mute window began) and for 1s after its clip ENDS. The short
-  // post-end window is deliberate: Theo repeating the modeled number ~1s
-  // later is call-and-response — the point of the hint. v23's flat 2.5s
-  // from clip START ate that echo (and expired mid-clip on long prompts).
+  // Blocked iff the wanted number is part of the current/latest speech AND
+  // this transcript belongs to that speech (muted now, or utterance born
+  // muted). No post-end time window: the child repeating the modeled number
+  // right after the clip is call-and-response — the point of the hint — and
+  // v24's 1s window systematically ate it (recognition posts answers
+  // 0.5–1.5s after the clip, indistinguishable from the echo BY TIME alone).
   const stamp = recentGameNums.get(wanted) || 0;
-  const hintBlocked = (muted && stamp >= muteStartedAt) || (Date.now() - stamp < 1000);
+  const hintBlocked = gameVoice && stamp >= muteStartedAt;
   const expectAt = () => {
     if (accepted.length) return accepted[accepted.length - 1] + wantedDir;
     return pending.length ? pending[pending.length - 1].n + wantedDir : wanted;
@@ -233,12 +254,17 @@ let titleCommands = null;
 export function setTitleCommands(map) { titleCommands = map; }
 
 // Core of recognition handling; also reachable as window.__hear for testing.
-function hear(transcript) {
+// uttKey identifies which utterance a result belongs to (see utteranceEcho);
+// null (tests, unknown) falls back to the plain muted state.
+function hear(transcript, uttKey = null) {
+  // Must run first even for transcripts we discard: it MARKS the utterance
+  // while muted so its post-unmute finals stay recognizable as game audio.
+  const gameVoice = utteranceEcho(uttKey) || muted;
   let tokens = (transcript || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   if (!tokens.length) return;
   let joined = tokens.join(' ');
 
-  if (!muted) {
+  if (!gameVoice) {
     // The game's own lines coming back through the speakers: recognition lags
     // real time, so a late transcript often merges the game's prompt with the
     // child's answer ("counting up what comes after three FOUR"). Discarding
@@ -261,54 +287,49 @@ function hear(transcript) {
   // Title-screen theme words. Only between rounds (no expectation armed) and
   // never while the game itself is speaking — a mid-round "dragon" must never
   // switch the world out from under an in-progress question.
-  if (!muted && wanted === null && titleCommands) {
+  if (!gameVoice && wanted === null && titleCommands) {
     for (const tok of tokens) {
       if (titleCommands[tok]) { voiceAudit({ heard: joined, verdict: `theme:${tok}` }); titleCommands[tok](); return; }
     }
   }
 
-  // While the game speaks, fuzzy matching narrows to words the game itself
-  // never says (MUTED_WORDS) — a clear chain still cuts through, homophone
-  // or not, and the game's own lines can never count themselves.
+  // While the game speaks (or the utterance began during its speech), fuzzy
+  // matching narrows to words the game itself never says (MUTED_WORDS) — a
+  // clear chain still cuts through, homophone or not, and the game's own
+  // lines can never count themselves.
   lastHintBlocked = false;
-  const accepted = extractChain(tokens, muted ? MUTED_WORDS : WORDS);
+  const accepted = extractChain(tokens, gameVoice ? MUTED_WORDS : WORDS, gameVoice);
   if (accepted.length) {
     const now = Date.now();
     for (const n of accepted) pending.push({ n, t: now });
     caption(`🗣 “${joined}”  → ${accepted.join(', ')} ✓`, true);
-    voiceAudit({ heard: joined, muted, verdict: `accepted ${accepted.join(',')}` });
+    voiceAudit({ heard: joined, muted: gameVoice, verdict: `accepted ${accepted.join(',')}` });
     drainPending();
     return;
   }
-  if (muted) {
-    // Anything else mid-speech is (mostly) the game's own voice — but keep
-    // the evidence: these silent drops made the v23 playtest undiagnosable.
-    voiceAudit({ heard: joined, muted: true, verdict: lastHintBlocked ? 'hint-blocked' : 'muted-drop' });
+  if (gameVoice) {
+    // The game's own voice (live, or an echo utterance finalizing after the
+    // unmute) — keep the evidence: silent drops made v23 undiagnosable.
+    voiceAudit({
+      heard: joined, muted: gameVoice,
+      verdict: lastHintBlocked ? 'hint-blocked' : (muted ? 'muted-drop' : 'echo-final'),
+    });
     caption(`🗣 “${joined}” · 🔇`, false);
     return;
   }
 
-  // Bare numbers the game just said (echo through the speakers): discount.
-  // Stamps refresh at clip END (audio.js), so 1.5s covers real echo lag
-  // without going deaf for a clip-length-dependent stretch.
-  if (tokens.length <= 3) {
-    const now = Date.now();
-    const nums = tokens.map(t => WORDS[t]).filter(v => v !== undefined);
-    if (nums.length && nums.every(n => now - (recentGameNums.get(n) || 0) < 1500)) {
-      voiceAudit({ heard: joined, verdict: 'echo-discount' });
-      return;
-    }
-  }
-
-  voiceAudit({ heard: joined, verdict: wanted === null ? 'not-armed' : (lastHintBlocked ? 'hint-blocked' : 'no-match') });
+  voiceAudit({ heard: joined, verdict: wanted === null ? 'not-armed' : 'no-match' });
   caption(`🗣 “${joined}”`, false);
 }
+
+let recGen = 0; // bumped per recognizer (re)start — result indices reset with it
 
 function handleResults(e) {
   for (let i = e.resultIndex; i < e.results.length; i++) {
     // best alternative only: lower-ranked alternatives re-offer the same
-    // audio and could push the chain past what was actually said
-    hear(e.results[i][0].transcript);
+    // audio and could push the chain past what was actually said.
+    // gen:index identifies the utterance across its interim→final results.
+    hear(e.results[i][0].transcript, `${recGen}:${i}`);
   }
 }
 
@@ -317,7 +338,7 @@ function handleResults(e) {
 // the un-muted state, where the phrase-strip path (not MUTED_WORDS) runs;
 // __hearLog is the persistent transcript-verdict audit (see voiceAudit).
 if (typeof window !== 'undefined') {
-  window.__hear = hear;
+  window.__hear = (t, uttKey = null) => hear(t, uttKey); // optional utterance key, e.g. __hear('five', 'echo:1')
   window.__voiceMuted = () => muted;
   window.__hearLog = auditLog;
 }
@@ -329,7 +350,7 @@ function create() {
   rec.maxAlternatives = 3;
   rec.lang = 'en-US';
   rec.onresult = handleResults;
-  rec.onstart = () => { listening = true; updateDot(); };
+  rec.onstart = () => { recGen++; listening = true; updateDot(); };
   rec.onend = () => {
     listening = false; updateDot();
     // The API stops itself constantly; keep it alive while the mode is on.
