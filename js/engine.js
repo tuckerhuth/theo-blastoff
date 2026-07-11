@@ -252,6 +252,18 @@ async function runRound({ tutorial = false } = {}) {
   ui.clearTiles();
   ui.hideBigNum();
 
+  // Victory lap: recount the whole build 1→N out loud so he hears the full
+  // sequence in order before the countdown. Game-narrated — no tiles, not an
+  // answer phase; the built rocket + lit tower stay as backdrop while the big
+  // numeral ticks in sync with the voice.
+  if (!tutorial) {
+    for (let n = 1; n <= planUp.len; n++) {
+      ui.setBigNum(n, { solo: false });
+      await speak([numClip(n)]);
+    }
+    ui.hideBigNum();
+  }
+
   // the crew boards before the countdown
   speak(['allaboard']);
   sfx.steps();
