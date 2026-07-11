@@ -141,6 +141,30 @@ await scenario('knight: full round by taps → VICTORY', async () => {
   }
 });
 
+await scenario('knight scene structure matches the design source', async () => {
+  // Guards against re-simplification: the scene must carry the design's
+  // actual art density (burning shires, smoke columns, full dragon/knight
+  // rigs), not a redrawn approximation — the v23 rejection. Structural
+  // only (no timing/pixels): counts + the choreography handles knight.js
+  // drives. Numbers trace to the design source: 141 verbatim paths / 84
+  // rects / 6 house clusters / 20+ kdSmoke columns.
+  await fresh({ theme: 'knight' });
+  return page.evaluate(() => {
+    const svg = document.querySelector('#scene svg');
+    if (!svg || svg.getAttribute('data-theme') !== 'knight') return false;
+    const paths = svg.querySelectorAll('path').length;
+    const rects = svg.querySelectorAll('rect').length;
+    const shires = svg.querySelectorAll('[data-kd="shire"]').length;
+    const smoke = [...svg.querySelectorAll('ellipse')]
+      .filter((e) => (e.getAttribute('style') || '').includes('kdSmoke')).length;
+    const handles = ['dragonOuter', 'dragonRoam', 'dragonWince', 'dragonTint', 'painEye',
+      'deadEye', 'fireBreath', 'swordJab', 'spark',
+      ...Array.from({ length: 10 }, (_, i) => `armor${i + 1}`)]
+      .every((k) => svg.querySelector(`[data-kd="${k}"]`));
+    return paths >= 130 && rects >= 75 && shires >= 6 && smoke >= 15 && handles;
+  });
+});
+
 await scenario('theme cards: switch without starting + persistence', async () => {
   await fresh(); // rocket
   await tapSel('.theme-card[data-theme="knight"]');
