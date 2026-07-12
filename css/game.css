@@ -216,16 +216,28 @@ body {
 #stars .slot.earned { opacity: 1; animation: star-pop .6s cubic-bezier(.2,1.8,.4,1); }
 @keyframes star-pop { 30% { transform: scale(1.8) rotate(20deg); } }
 
-/* listening indicator for the experimental mic mode */
+/* listening indicator for the experimental mic mode. DEBUG: a filled ring
+   makes muted-vs-listening readable at a glance across every theme — not
+   trying to look nice, just unmissable while watching the hint-block bug. */
 #micDot {
   position: absolute;
   top: max(9vh, calc(env(safe-area-inset-top) + 7vh));
   right: max(2vmin, env(safe-area-inset-right));
   z-index: 30;
+  width: 7vmin; height: 7vmin;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
   font-size: 4vmin;
   pointer-events: none;
+  background: rgba(40, 210, 110, .55);
+  box-shadow: 0 0 0 .5vmin rgba(40, 210, 110, .3);
   animation: mic-pulse 1.4s ease infinite;
   filter: drop-shadow(0 .3vmin .5vmin rgba(0,0,0,.5));
+}
+#micDot.muted {
+  background: rgba(230, 60, 50, .6);
+  box-shadow: 0 0 0 .5vmin rgba(230, 60, 50, .35);
+  animation: none;
 }
 @keyframes mic-pulse { 50% { opacity: .45; transform: scale(.9); } }
 
@@ -247,6 +259,7 @@ body {
 }
 #micCaption.match { color: #7ed957; font-weight: 600; }
 #micCaption.idle { opacity: .5; }
+#micCaption.muted-state { color: #ff7a68; opacity: .85; }
 
 /* on-device error reporter — debugging eyes for phones we can't inspect */
 #errBadge {

@@ -88,18 +88,30 @@ export function initVoice(indicatorEl, transcriptEl) {
   captionEl = transcriptEl;
 }
 
+// DEBUG: live muted-vs-listening state, updated with no delay (unlike the
+// transcript caption below, which can lag up to 2.5s behind a mute flip
+// while a transcript is on screen). This is the authoritative signal for
+// watching the hint-block window in real time. — Tucker, debugging the
+// post-hint deafness bug.
 function updateDot() {
-  if (dotEl) dotEl.classList.toggle('hidden', !(listening && store.data.settings.micOn));
+  if (dotEl) {
+    const on = listening && store.data.settings.micOn;
+    dotEl.classList.toggle('hidden', !on);
+    dotEl.classList.toggle('muted', muted);
+    dotEl.textContent = muted ? '🔇' : '🎤';
+  }
   refreshCaption();
 }
 
-// Steady state of the audit strip: "listening…" while the recognizer is
-// live, hidden when it isn't. No caption at all = recognition is not running.
+// Steady state of the audit strip: "listening…"/"muted…" while the
+// recognizer is live, hidden when it isn't. No caption at all = recognition
+// is not running.
 function refreshCaption() {
   if (!captionEl || captionTimer) return; // a transcript is on screen — let it finish
   if (listening && store.data.settings.micOn) {
-    captionEl.textContent = '🎤 listening…';
-    captionEl.classList.add('idle');
+    captionEl.textContent = muted ? '🔇 muted…' : '🎤 listening…';
+    captionEl.classList.toggle('idle', !muted);
+    captionEl.classList.toggle('muted-state', muted);
     captionEl.classList.remove('match', 'hidden');
   } else {
     captionEl.classList.add('hidden');
@@ -111,7 +123,7 @@ function caption(text, matched) {
   if (!captionEl) return;
   captionEl.textContent = text;
   captionEl.classList.toggle('match', !!matched);
-  captionEl.classList.remove('idle', 'hidden');
+  captionEl.classList.remove('idle', 'muted-state', 'hidden');
   clearTimeout(captionTimer);
   captionTimer = setTimeout(() => { captionTimer = null; refreshCaption(); }, 2500);
 }
@@ -445,4 +457,5 @@ let muteStartedAt = 0;
 export function setVoiceMuted(m) {
   if (m && !muted) muteStartedAt = Date.now();
   muted = m;
+  updateDot();
 }
