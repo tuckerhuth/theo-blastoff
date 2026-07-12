@@ -22,6 +22,7 @@ const CLIPS = [
 const PACK_OVERRIDES = {
   rocket: new Set(),
   knight: new Set(['hello', 'countdown', 'allaboard', 'blastoff', 'great1', 'onemore', 'alldone']),
+  monkey: new Set(['hello', 'countdown', 'allaboard', 'blastoff', 'great1', 'onemore', 'alldone']),
 };
 
 let voicePack = 'rocket';
@@ -204,6 +205,53 @@ function noiseBuffer(seconds) {
   return buf;
 }
 
+/* ---- monkey theme SFX: a marimba climb + a whoop screech (procedural) ----
+   The countdown plays one climbing marimba note per banana eaten (sfx.tick);
+   the win is a monkey whoop (sfx.screech, fired by the theme at the cheer). */
+const MARIMBA = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3, 784.0, 880.0]; // C-major pentatonic, 2 octaves
+let marimbaStep = 0;
+
+// One bright wooden-marimba note: triangle fundamental + a ringing 4th harmonic,
+// both with a fast marimba decay. Successive calls climb the scale.
+function marimbaNote(idx) {
+  if (!ctx || !store.data.settings.sfx) return;
+  const f = MARIMBA[Math.max(0, Math.min(MARIMBA.length - 1, idx))];
+  const t0 = ctx.currentTime;
+  [[f, 'triangle', 0.32, 0.5], [f * 4, 'sine', 0.10, 0.16]].forEach(([freq, type, peak, dur]) => {
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(peak, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+    o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.05);
+  });
+}
+
+// Excited monkey whoop — the win call, fired by the theme at the chest-thump cheer.
+function monkeyScreech() {
+  if (!ctx || !store.data.settings.sfx) return;
+  const t0 = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(520, t0);
+  osc.frequency.exponentialRampToValueAtTime(1500, t0 + 0.16); // "eee-"
+  osc.frequency.exponentialRampToValueAtTime(760, t0 + 0.5);   // "-oop"
+  const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 26; // call vibrato
+  const lfoG = ctx.createGain(); lfoG.gain.value = 140;
+  lfo.connect(lfoG); lfoG.connect(osc.frequency);
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 2.2;
+  const g = ctx.createGain(); env(g, t0, 0.02, 0.5, 0.6);
+  osc.connect(bp); bp.connect(g); g.connect(master);
+  osc.start(t0); osc.stop(t0 + 0.72); lfo.start(t0); lfo.stop(t0 + 0.72);
+  const o2 = ctx.createOscillator(); o2.type = 'sawtooth';       // the troop joins in
+  o2.frequency.setValueAtTime(720, t0 + 0.16);
+  o2.frequency.exponentialRampToValueAtTime(1900, t0 + 0.3);
+  o2.frequency.exponentialRampToValueAtTime(900, t0 + 0.6);
+  const bp2 = ctx.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 1800; bp2.Q.value = 2;
+  const g2 = ctx.createGain(); env(g2, t0 + 0.16, 0.02, 0.3, 0.5);
+  o2.connect(bp2); bp2.connect(g2); g2.connect(master);
+  o2.start(t0 + 0.16); o2.stop(t0 + 0.8);
+}
+
 export const sfx = {
   press()  { tone({ freq: 420, type: 'triangle', dur: 0.08, peak: 0.12 }); },
 
@@ -233,12 +281,16 @@ export const sfx = {
   },
 
   tick(n)  { // countdown tick, more tension as n approaches 1
+    if (voicePack === 'monkey') return marimbaNote(marimbaStep++); // climbing marimba per banana eaten
     const f = 500 + (10 - n) * 40;
     tone({ freq: f, type: 'square', dur: 0.07, peak: 0.08 });
     tone({ freq: f / 2, type: 'sine', dur: 0.12, peak: 0.12 });
   },
 
+  screech() { monkeyScreech(); }, // the monkey win whoop — the theme fires this at the cheer
+
   whoosh() {
+    if (voicePack === 'monkey') return; // the whoop fires at the cheer (theme), not the rocket swoosh
     if (!ctx || !store.data.settings.sfx) return;
     const t0 = ctx.currentTime;
     const src = ctx.createBufferSource();
@@ -254,6 +306,7 @@ export const sfx = {
   },
 
   rumbleStart() {
+    if (voicePack === 'monkey') { marimbaStep = 0; return; } // marimba climbs per tick; no engine rumble
     if (!ctx || !store.data.settings.sfx || rumbleNodes) return;
     const src = ctx.createBufferSource();
     src.buffer = noiseBuffer(2.5);
@@ -268,12 +321,14 @@ export const sfx = {
   },
 
   rumbleLevel(x) { // 0..1
+    if (voicePack === 'monkey') return; // marimba is per-tick; no continuous level
     if (!rumbleNodes) return;
     rumbleNodes.g.gain.linearRampToValueAtTime(0.55 * x, ctx.currentTime + 0.25);
     rumbleNodes.lp.frequency.linearRampToValueAtTime(110 + 160 * x, ctx.currentTime + 0.25);
   },
 
   rumbleStop(fade = 0.6) {
+    if (voicePack === 'monkey') return; // nothing continuous to stop
     if (!rumbleNodes) return;
     const { src, g } = rumbleNodes;
     rumbleNodes = null;

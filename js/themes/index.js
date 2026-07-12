@@ -4,10 +4,12 @@
 
 import { rocketTheme } from './rocket.js';
 import { knightTheme } from './knight.js';
+import { monkeyTheme } from './monkey.js';
 
 export const THEMES = {
   rocket: rocketTheme,
   knight: knightTheme,
+  monkey: monkeyTheme,
 };
 
 let active = rocketTheme;

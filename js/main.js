@@ -59,6 +59,8 @@ setTitleCommands({
   rocket: () => switchTheme('rocket'),
   knight: () => switchTheme('knight'),
   dragon: () => switchTheme('knight'),
+  monkey: () => switchTheme('monkey'),
+  banana: () => switchTheme('monkey'),
 });
 
 // Debug handle (harmless in production; handy for poking at state).

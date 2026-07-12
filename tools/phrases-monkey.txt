@@ -1,0 +1,11 @@
+# Blast Off, Theo! — Monkey & Banana Tree voice overrides. Same format as
+# phrases.txt; only the 7 flavor lines this theme speaks differently.
+# Samantha placeholders — Tucker re-records. Used with an output-dir argument:
+#   ./tools/generate_voice.sh phrases-monkey.txt ../assets/voice/monkey
+hello|Hi Theo! Let's fill the tree with bananas!
+countdown|Now, let's count down and eat every banana!
+allaboard|A whole bunch! Time to eat!
+blastoff|You're the top banana!
+great1|Great counting, Theo!
+onemore|One more bunch?
+alldone|Great counting, Theo! See you next time!

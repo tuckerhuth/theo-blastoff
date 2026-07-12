@@ -34,6 +34,12 @@ page.on('pageerror', (e) => { if (!String(e).includes('suite-test')) pageErrors.
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const tapSel = async (sel) => (TOUCH ? page.tap(sel) : page.click(sel));
+// Start a session by tapping the title HEADING, not the '#title' box itself:
+// page.tap centres on the element, and with 3 theme cards the middle card sits
+// at the phone-width horizontal centre, so tapping '#title' would land on a
+// card (which stops propagation) instead of starting. The <h1> is always clear
+// of the card row and — unlike #playHint — carries no rocket-bounce animation
+// to stall Playwright's actionability. (Any non-card child of #title starts.)
 
 // synthetic pointer with explicit pointerType (for gear-hold semantics)
 const pointer = (sel, type, kind) => page.evaluate(([sel, type, kind]) => {
@@ -111,7 +117,7 @@ async function scenario(name, fn) {
 
 await scenario('start', async () => {
   await fresh();
-  await tapSel('#title');
+  await tapSel('#title h1');
   await sleep(1500);
   return !(await gameState()).title;
 });
@@ -120,7 +126,7 @@ await scenario('full round by taps → BLAST OFF', () => playUntilBanner());
 
 await scenario('min 3 tiles + wrong tap locks input, then the answer lands', async () => {
   await fresh({ seqLen: 4 }); // levelUp 1 → every real choice is now a 3-tile step
-  await tapSel('#title');
+  await tapSel('#title h1');
   await page.waitForSelector('.tile', { timeout: 8000 });
   await sleep(300);
   const info = await page.evaluate(() => {
@@ -157,7 +163,7 @@ await scenario('knight: full round by taps → VICTORY', async () => {
   await fresh({ theme: 'knight' });
   const dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
   if (dataTheme !== 'knight') return false;
-  await tapSel('#title');
+  await tapSel('#title h1');
   bannerWord = 'Victory';
   try {
     const done = await playUntilBanner();
@@ -213,6 +219,53 @@ await scenario('knight scene structure matches the design source', async () => {
   });
 });
 
+await scenario('monkey: full round by taps → top banana', async () => {
+  await fresh({ theme: 'monkey' });
+  const dataTheme = await page.evaluate(() => document.querySelector('#scene svg')?.getAttribute('data-theme'));
+  if (dataTheme !== 'monkey') return false;
+  await tapSel('#title h1');
+  bannerWord = 'banana'; // finale banner: "You're the top banana!"
+  try {
+    const done = await playUntilBanner();
+    if (!done) return false;
+    // launches++ runs only after the full launch animation (swing → land →
+    // cheer) + praise audio, ~5-7s past the banner — poll, don't guess.
+    const t0 = Date.now();
+    while (Date.now() - t0 < 15000) {
+      if ((await gameState()).launches >= 1) return true;
+      await sleep(500);
+    }
+    return false;
+  } finally {
+    bannerWord = 'BLAST';
+  }
+});
+
+await scenario('monkey scene structure matches the design source', async () => {
+  // Guards against re-simplification: the scene must carry the design's actual
+  // art density — the 89-frond banana-tree canopy, the full 5-pose monkey rig,
+  // the 10-banana bunch — not a redrawn approximation. Structural only (no
+  // timing/pixels): counts + every data-mk handle monkey.js drives. Numbers
+  // trace to the design source (MonkeyScene: 89 canopy fronds; Monkey: 5 poses;
+  // Flow: the 10-banana bunch).
+  await fresh({ theme: 'monkey' });
+  return page.evaluate(() => {
+    const svg = document.querySelector('#scene svg');
+    if (!svg || svg.getAttribute('data-theme') !== 'monkey') return false;
+    const paths = svg.querySelectorAll('path').length;
+    const ellipses = svg.querySelectorAll('ellipse').length;
+    const fronds = svg.querySelectorAll('[data-mk="canopy-back"] ellipse, [data-mk="canopy-front"] ellipse').length;
+    const bananas = svg.querySelectorAll('[data-mk-banana]').length;
+    const handles = ['banana', 'stars', 'moon', 'celestial', 'rays', 'bg-far', 'bg-far2', 'bg-mid',
+      'vines', 'tree', 'canopy-back', 'bananas', 'canopy-front', 'foreground', 'butterflies', 'fireflies',
+      'pose-standing', 'arms-content', 'arms-delight', 'arms-cheer', 'arms-eat',
+      'expr-content', 'expr-delight', 'expr-cheer', 'expr-eat', 'pose-swing', 'chomp',
+      'celebration-vines', 'monkey-char', 'monkey-bounce', 'flying-banana', 'vignette']
+      .every((k) => svg.querySelector(`[data-mk="${k}"]`));
+    return paths >= 100 && ellipses >= 120 && fronds >= 85 && bananas === 10 && handles;
+  });
+});
+
 await scenario('theme cards: switch without starting + persistence', async () => {
   await fresh(); // rocket
   await tapSel('.theme-card[data-theme="knight"]');
@@ -248,7 +301,7 @@ await scenario('voice theme switch at title only', async () => {
   if (dataTheme !== 'rocket') return false;
 
   // mid-round: a stray "dragon" must be refused
-  await tapSel('#title');
+  await tapSel('#title h1');
   await sleep(1200);
   await page.evaluate(() => { window.__hear('dragon'); });
   await sleep(300);
@@ -258,7 +311,7 @@ await scenario('voice theme switch at title only', async () => {
 
 await scenario('voice chain: interim dedup + prompt contamination + digit-runs', async () => {
   await fresh({ seqLen: 5 });
-  await tapSel('#title');
+  await tapSel('#title h1');
   await page.waitForSelector('.tile', { timeout: 8000 });
   await sleep(200);
   let s = await gameState();
@@ -310,7 +363,7 @@ await scenario('voice chain: interim dedup + prompt contamination + digit-runs',
 
 await scenario('voice during game speech: homophones land, game words never', async () => {
   await fresh({ seqLen: 5 });
-  await tapSel('#title');
+  await tapSel('#title h1');
   await page.waitForSelector('.tile', { timeout: 8000 });
   await sleep(200);
   let s = await gameState();
@@ -363,7 +416,7 @@ await scenario('voice during game speech: homophones land, game words never', as
 
 await scenario('voice hint echo: game\'s own number blocked, Theo\'s repeat lands', async () => {
   await fresh({ seqLen: 5 });
-  await tapSel('#title');
+  await tapSel('#title h1');
   await page.waitForSelector('.tile', { timeout: 8000 });
   await sleep(200);
   let s = await gameState();
@@ -404,7 +457,7 @@ await scenario('voice echo finals: muted-born utterance blocked, fresh one insta
   // child's answer is a fresh utterance and must land with NO cooldown at
   // all (v24's post-end time windows ate real answers here).
   await fresh({ seqLen: 5 });
-  await tapSel('#title');
+  await tapSel('#title h1');
   await page.waitForSelector('.tile', { timeout: 8000 });
   await sleep(200);
   let s = await gameState();
@@ -496,7 +549,7 @@ await scenario('late levels reach a full count of 10', async () => {
   // (Audio behavior — no arm-time prompt, no per-answer echo — is not
   // assertable headlessly; this covers the range rule.)
   await fresh({ levelUp: 3, levelDown: 3, seqLen: 5 });
-  await tapSel('#title');
+  await tapSel('#title h1');
   const done = await playUntilBanner(60000);
   if (!done) return false;
   // afterRound runs only after the full launch animation + praise (~6s

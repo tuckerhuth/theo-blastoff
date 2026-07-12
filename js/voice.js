@@ -55,6 +55,14 @@ const GAME_PHRASES = [
   'great counting sir theo',
   'one more quest',
   'great questing sir theo see you next time',
+  // Monkey & Banana Tree theme's own flavor lines (tools/phrases-monkey.txt).
+  'hi theo let s fill the tree with bananas',
+  'now let s count down and eat every banana',
+  'a whole bunch time to eat',
+  'you re the top banana',
+  'great counting theo',
+  'one more bunch',
+  'great counting theo see you next time',
 ];
 
 let rec = null;

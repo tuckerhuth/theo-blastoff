@@ -2,7 +2,7 @@
 // (registered only on the deployed site — see main.js).
 
 // Keep in lockstep with GAME_VERSION in js/store.js.
-const VERSION = 'blastoff-v31';
+const VERSION = 'blastoff-v33';
 
 const PRECACHE = [
   '.',
@@ -11,6 +11,7 @@ const PRECACHE = [
   'js/main.js', 'js/engine.js', 'js/ui.js', 'js/input.js', 'js/audio.js',
   'js/store.js', 'js/tasks.js', 'js/levels.js', 'js/fx.js', 'js/voice.js',
   'js/themes/index.js', 'js/themes/rocket.js', 'js/themes/knight.js', 'js/themes/knight-scene.js',
+  'js/themes/monkey.js', 'js/themes/monkey-scene.js',
   'assets/fonts/fredoka-latin.woff2',
   'assets/fonts/cinzel-decorative-700-latin.woff2',
   'assets/fonts/cinzel-decorative-900-latin.woff2',
@@ -23,6 +24,8 @@ const PRECACHE = [
     .map(n => `assets/voice/${n}.m4a`),
   ...['hello','countdown','allaboard','blastoff','great1','onemore','alldone']
     .map(n => `assets/voice/knight/${n}.m4a`),
+  ...['hello','countdown','allaboard','blastoff','great1','onemore','alldone']
+    .map(n => `assets/voice/monkey/${n}.m4a`),
 ];
 
 self.addEventListener('install', (e) => {
