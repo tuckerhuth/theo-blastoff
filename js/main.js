@@ -12,6 +12,7 @@ import { setVoicePack, hushSpeech } from './audio.js';
 store.load();
 ui.init();
 initVoice(document.getElementById('micDot'), document.getElementById('micCaption'));
+ui.initDebugPanel();
 initFx(ui.els.fx);
 
 const startingTheme = setActiveTheme(store.data.theme);

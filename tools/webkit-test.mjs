@@ -493,6 +493,178 @@ await scenario('voice echo finals: muted-born utterance blocked, fresh one insta
   return litReaches(5, 8000);
 });
 
+await scenario('voice shared slot: answer appended to the echo\'s slot lands', async () => {
+  // THE July-12 diagnosed bug: on iPad the child's answer is often APPENDED
+  // to the same growing result slot that carried the hint's echo. v25's
+  // lifetime slot-poisoning ate every repeat for ~3s; the echo ledger debits
+  // the echo occurrence and trusts occurrence #2 instantly — same slot.
+  await fresh({ seqLen: 5 });
+  await tapSel('#title h1');
+  await page.waitForSelector('.tile', { timeout: 8000 });
+  await sleep(200);
+  let s = await gameState();
+  const litReaches = async (n, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms && s.lit.length < n) { await sleep(300); s = await gameState(); }
+    return s.lit.length >= n;
+  };
+  for (const w of ['one', 'two', 'three', 'four']) {
+    await page.evaluate((w) => { window.__hear(w); }, w);
+  }
+  if (!(await litReaches(4, 15000))) return false;
+
+  // hint models the answer; its echo arrives mid-clip in slot:1 → debited
+  const mutedAt = await page.evaluate(() => {
+    window.__speak(['n5']);
+    window.__hear('five', 'slot:1');
+    return window.__voiceMuted();
+  });
+  if (!mutedAt) return false;
+  await sleep(600);
+  s = await gameState();
+  if (s.lit.length !== 4) return false; // the echo answered the hint
+
+  // the slot GROWS with the child's repeat (echo + answer in one transcript,
+  // same slot) — the new occurrence must land with no cooldown
+  const t0 = Date.now();
+  while (Date.now() - t0 < 5000 && await page.evaluate(() => window.__voiceMuted())) await sleep(100);
+  await page.evaluate(() => { window.__hear('five five', 'slot:1'); });
+  return litReaches(5, 8000);
+});
+
+await scenario('voice victory lap: countdown anchor answerable during the intro', async () => {
+  // v31 amplifier regression: the lap speaks 1..N right before the countdown,
+  // and the old muteStartedAt/stamp guard blocked the anchor answer for the
+  // whole lap→intro mute chain (~7s). Now lap budgets expire ~2s after their
+  // own clips and nothing time-based blocks the child: answering DURING the
+  // countdown intro clip must advance the anchor (at most one ledger debit).
+  await fresh({ seqLen: 3 });
+  await tapSel('#title h1');
+  await page.waitForSelector('.tile', { timeout: 8000 });
+  await sleep(200);
+  for (const w of ['one', 'two', 'three']) {
+    await page.evaluate((w) => { window.__hear(w); }, w);
+  }
+  // build completes → victory lap → boarding → countdown anchor arms
+  const t0 = Date.now(); let armed = false;
+  while (Date.now() - t0 < 25000) {
+    if ((await gameState()).bigSolo) { armed = true; break; }
+    await sleep(100);
+  }
+  if (!armed) return false;
+  // shout the top number while the game is still speaking (intro clip);
+  // repeat every 600ms in fresh slots — the ledger may debit ONE occurrence
+  // (an open lap budget), never more. If the intro already ended (slow run),
+  // the injections still must land — they just don't exercise the mid-speech
+  // path on that run.
+  let k = 0;
+  const t1 = Date.now();
+  while (Date.now() - t1 < 6000) {
+    if (!(await gameState()).bigSolo) return true; // advanced — answer landed
+    await page.evaluate((k) => { window.__hear('three', `lap:${k}`); }, ++k);
+    await sleep(600);
+  }
+  return !(await gameState()).bigSolo;
+});
+
+await scenario('voice monkey: "tree" is three mid-prompt, debited only during its own clip', async () => {
+  // The monkey theme's hello line put 'tree' into the game vocabulary, and
+  // v24's MUTED_WORDS silently killed the tree→3 toddler homophone during
+  // ALL game speech. Now: 'tree' lands as 3 even mid-prompt, and is debited
+  // only while a clip that actually says 'tree' has an open echo budget.
+  await fresh({ seqLen: 5 });
+  await tapSel('.theme-card[data-theme="monkey"]');
+  await sleep(300);
+  await tapSel('#title h1');
+  await page.waitForSelector('.tile', { timeout: 8000 });
+  await sleep(200);
+  let s = await gameState();
+  const litReaches = async (n, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms && s.lit.length < n) { await sleep(300); s = await gameState(); }
+    return s.lit.length >= n;
+  };
+  await page.evaluate(() => { window.__hear('one'); });
+  await page.evaluate(() => { window.__hear('two'); });
+  if (!(await litReaches(2, 12000))) return false;
+  // The monkey GREETING itself says 'tree' ("...fill the TREE with bananas"),
+  // so its one-occurrence echo budget must expire (2s past the clip) before
+  // a bare 'tree' is trusted — the designed residual. Real play is tens of
+  // seconds past the greeting by the time 3 is the question; pace the test
+  // the same way instead of sprinting into the budget window.
+  await sleep(2500);
+
+  // expecting 3: Theo's "three" transcribed as "tree" while the game is
+  // mid-prompt — the v24 regression dropped this; it must land.
+  const mutedAtTree = await page.evaluate(() => {
+    window.__speak(['countingup', 'after2']);
+    window.__hear('tree');
+    return window.__voiceMuted();
+  });
+  if (!mutedAtTree) return false;
+  if (!(await litReaches(3, 8000))) return false;
+
+  // but during the monkey hello clip — whose text really contains 'tree' —
+  // the first 'tree' is the clip's own echo and must be debited
+  const mutedAtHello = await page.evaluate(() => {
+    window.__speak(['hello']); // monkey pack: "...fill the TREE with bananas"
+    window.__hear('tree', 'mk:1');
+    return window.__voiceMuted();
+  });
+  if (!mutedAtHello) return false;
+  await sleep(600);
+  s = await gameState();
+  if (s.lit.length !== 3) return false; // the hello echo advanced the count
+
+  // and the child's own 'four' right after is untouched by any of it
+  await page.evaluate(() => { window.__hear('four'); });
+  return litReaches(4, 8000);
+});
+
+await scenario('voice fuzzy: near-miss of the expected number lands, echo disguise debits', async () => {
+  // Fire-tablet playtest (July 13): the recognizer garbles "four" into
+  // near-misses ('pour', 'or', 'fourth') that the WORDS map doesn't know.
+  // The fuzzy tier accepts them ONLY against the expected number, never for
+  // clip words, and a hint echo wearing a disguise still spends its budget.
+  await fresh({ seqLen: 5 });
+  await tapSel('#title h1');
+  await page.waitForSelector('.tile', { timeout: 8000 });
+  await sleep(200);
+  let s = await gameState();
+  const litReaches = async (n, ms) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms && s.lit.length < n) { await sleep(300); s = await gameState(); }
+    return s.lit.length >= n;
+  };
+  for (const w of ['one', 'two', 'three']) {
+    await page.evaluate((w) => { window.__hear(w); }, w);
+  }
+  if (!(await litReaches(3, 15000))) return false;
+
+  // hint models 4; its echo arrives DISGUISED as 'pour' mid-clip → debited
+  await page.evaluate(() => {
+    window.__speak(['n4']);
+    window.__hear('pour', 'fz:1');
+  });
+  await sleep(700);
+  s = await gameState();
+  if (s.lit.length !== 3) return false; // the disguised echo answered the hint
+
+  // clip words never gain fuzzy disguises ('more' is one edit from 'four')
+  await page.evaluate(() => { window.__hear('more', 'fz:2'); });
+  await sleep(500);
+  s = await gameState();
+  if (s.lit.length !== 3) return false;
+
+  // the child's own near-miss, budget spent → lands
+  await page.evaluate(() => { window.__hear('pour', 'fz:3'); });
+  if (!(await litReaches(4, 8000))) return false;
+
+  // prefix form at the next step ('fives' → 5)
+  await page.evaluate(() => { window.__hear('fives', 'fz:4'); });
+  return litReaches(5, 8000);
+});
+
 await scenario(TOUCH ? 'gear: touch hold (0.7s no, 2.2s yes)' : 'gear: mouse click opens instantly', async () => {
   await fresh();
   if (!TOUCH) {

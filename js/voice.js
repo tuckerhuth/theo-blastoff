@@ -2,8 +2,9 @@
 //
 // Strictly additive: tapping always works; a correctly-spoken number is
 // accepted instantly, anything else is ignored — recognition noise must
-// never punish. Muted while the game itself is speaking so the game's own
-// voice can't answer its prompts.
+// never punish. The game's own voice can't answer its prompts because every
+// spoken clip opens a one-occurrence echo budget (the ledger below), not
+// because of any time-based muting — the child is trusted at all times.
 
 import { store } from './store.js';
 
@@ -23,47 +24,80 @@ const WORDS = {
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-// The game's own lines (normalized) — recognition of these is the game
-// talking to itself through the speakers, never the child. Keep roughly in
-// sync with tools/phrases.txt (number clips are handled separately below).
-const GAME_PHRASES = [
-  'captain theo time to build your rocket',
-  'let s count up',
-  'now let s count down to blast off',
-  'what comes next',
-  'what comes first',
-  'what comes after',
-  'counting up',
-  'counting down',
-  'watch me',
-  'your turn',
-  'blast off',
-  'great counting captain theo',
-  'hooray you did it',
-  'amazing counting',
-  'mission complete you earned a sticker',
-  'one more launch',
-  'great flying captain theo see you next time',
-  'tap to play',
-  'all aboard',
-  'no not',
-  // Knight & Dragon theme's own flavor lines (tools/phrases-knight.txt).
-  'sir theo a dragon is attacking the castle put on your armor',
-  'now let s count down and charge the dragon',
-  'draw your sword',
-  'victory',
-  'great counting sir theo',
-  'one more quest',
-  'great questing sir theo see you next time',
-  // Monkey & Banana Tree theme's own flavor lines (tools/phrases-monkey.txt).
-  'hi theo let s fill the tree with bananas',
-  'now let s count down and eat every banana',
-  'a whole bunch time to eat',
-  'you re the top banana',
-  'great counting theo',
-  'one more bunch',
-  'great counting theo see you next time',
-];
+// EVERY word the speaker can emit, per clip (normalized like a transcript:
+// lowercase, punctuation → token breaks). This is the single source of truth
+// for the echo ledger AND the phrase-strip list — the game can only echo what
+// it actually plays. Keys are RESOLVED clip keys (audio.js clipKey()): shared
+// clips bare, theme overrides as '<theme>/<name>'. Kept in lockstep with
+// tools/phrases*.txt by tools/check-clip-text.mjs (wired into verify.sh) —
+// the format below is parsed by that checker, keep it one 'key': 'text' pair
+// per line.
+/* CLIP_TEXT-BEGIN */
+const CLIP_TEXT = {
+  'n1': 'one',
+  'n2': 'two',
+  'n3': 'three',
+  'n4': 'four',
+  'n5': 'five',
+  'n6': 'six',
+  'n7': 'seven',
+  'n8': 'eight',
+  'n9': 'nine',
+  'n10': 'ten',
+  'hello': 'captain theo time to build your rocket',
+  'countup': 'let s count up',
+  'countdown': 'now let s count down to blast off',
+  'whatnext': 'what comes next',
+  'whatfirst': 'what comes first',
+  'countingup': 'counting up',
+  'countingdown': 'counting down',
+  'after1': 'what comes after one',
+  'after2': 'what comes after two',
+  'after3': 'what comes after three',
+  'after4': 'what comes after four',
+  'after5': 'what comes after five',
+  'after6': 'what comes after six',
+  'after7': 'what comes after seven',
+  'after8': 'what comes after eight',
+  'after9': 'what comes after nine',
+  'after10': 'what comes after ten',
+  'watchme': 'watch me',
+  'yourturn': 'your turn',
+  'ready': 'ready',
+  'blastoff': 'blast off',
+  'great1': 'great counting captain theo',
+  'great2': 'hooray you did it',
+  'great3': 'amazing counting',
+  'mission': 'mission complete you earned a sticker',
+  'onemore': 'one more launch',
+  'alldone': 'great flying captain theo see you next time',
+  'taptoplay': 'tap to play',
+  'allaboard': 'all aboard',
+  'notquite': 'no not',
+  'knight/hello': 'sir theo a dragon is attacking the castle put on your armor',
+  'knight/countdown': 'now let s count down and charge the dragon',
+  'knight/allaboard': 'draw your sword',
+  'knight/blastoff': 'victory',
+  'knight/great1': 'great counting sir theo',
+  'knight/onemore': 'one more quest',
+  'knight/alldone': 'great questing sir theo see you next time',
+  'monkey/hello': 'hi theo let s fill the tree with bananas',
+  'monkey/countdown': 'now let s count down and eat every banana',
+  'monkey/allaboard': 'a whole bunch time to eat',
+  'monkey/blastoff': 'you re the top banana',
+  'monkey/great1': 'great counting theo',
+  'monkey/onemore': 'one more bunch',
+  'monkey/alldone': 'great counting theo see you next time',
+};
+/* CLIP_TEXT-END */
+
+// The game's own multi-word lines — a transcript that is (a fragment of) one
+// of these is the game talking to itself through the speakers, never the
+// child. Derived, not hand-kept: single-token clips (the numbers, 'ready',
+// knight 'victory') are excluded so a bare spoken word is never stripped.
+const GAME_PHRASES = [...new Set(
+  Object.values(CLIP_TEXT).filter((t) => t.includes(' ')),
+)];
 
 let rec = null;
 let listening = false;
@@ -150,41 +184,213 @@ export function voiceAudit(entry) {
 }
 export function voiceAuditLog() { return auditLog; }
 
-// Numbers the game itself said recently (echo window): n → timestamp.
-// audio.js stamps every clip at speak() START and again as each clip's
-// audio ENDS (and on hush) — so the guards below can anchor on real sound.
-const recentGameNums = new Map();
-
-// audio.js reports every clip the game plays, so we can discount echoes.
-// afterN prompt clips ("What comes after three?") speak the previous number,
-// so they register it too.
-export function noteGameSpeech(names) {
-  const now = Date.now();
-  for (const name of names) {
-    const m = String(name).match(/^(?:n|after)(\d+)$/);
-    if (m) recentGameNums.set(+m[1], now);
-  }
-}
-
-// Strict number words — no homophones. While the game itself is speaking,
-// "time TO build" must never become 2, but a clear "two!" still lands.
+// Strict number words — no homophones. Used to decide which CLIP tokens are
+// number content (a clip saying "three" opens a number-class ledger entry;
+// its "to" in "time to build" opens only a literal-token entry, so a child's
+// "two" is never debited against it).
 const STRICT_WORDS = {
   one: 1, two: 2, three: 3, four: 4, five: 5,
   six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
   1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10,
 };
 
-// Mid-speech fuzzy matching (v24). A homophone that is ALSO a word the game
-// itself says must stay dead while the game speaks — "time TO build" can
-// never become 2 — but homophones the game never utters ("for", "ate",
-// "free") are almost certainly the child answering over the prompt, and
-// dropping those was the v23 playtest bug ("he said the right answer during
-// the prompt and nothing happened"). Strict words always count; the chain
-// guard keeps everything honest. Known residual: "two" transcribed as "to"
-// still dies mid-speech — the safe trade.
-const GAME_VOCAB = new Set(GAME_PHRASES.flatMap((p) => p.split(' ')));
-const MUTED_WORDS = Object.fromEntries(Object.entries(WORDS)
-  .filter(([tok]) => STRICT_WORDS[tok] !== undefined || !GAME_VOCAB.has(tok)));
+/* ---------------- expectation-biased fuzzy matching (v36) ----------------
+   The recognizer garbles toddler speech constantly ("four" arrives as
+   "pour", "or", "fourth"...). A global fuzz would invent numbers out of
+   ambient chatter, but the game always KNOWS the expected next number — so
+   near-misses are accepted only against that one word, only at the chain
+   position, and never for a word the game itself speaks (a clip echo must
+   not gain new disguises). The ledger debits fuzzy hits symmetrically, so a
+   hint echo transcribed as a near-miss still spends its budget instead of
+   self-answering. */
+
+// every word any clip can say — excluded from the fuzzy tier only (exact
+// WORDS matching is never narrowed; that was v24's mistake)
+const CLIP_WORD_SET = new Set(Object.values(CLIP_TEXT).flatMap((t) => t.split(' ')));
+
+// all known spellings per number, canonical word first
+const NUM_VARIANTS = {};
+for (const [tok, n] of Object.entries(WORDS)) {
+  (NUM_VARIANTS[n] = NUM_VARIANTS[n] || []).push(tok);
+}
+// common recognizer clippings/near-misses seen on-device that sit at edit
+// distance >1 or under the length guard — still expectation-scoped
+const EXTRA_FUZZ = {
+  2: ['tutu'], 4: ['or', 'oar', 'ore', 'door', 'floor'], 6: ['fix', 'sits'],
+  8: ['aid'], 9: ['line', 'wine'], 10: ['pen'],
+};
+
+function editDistance(a, b) {
+  if (Math.abs(a.length - b.length) > 1) return 2; // only 0/1 matter here
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1, dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+// Does this unrecognized token plausibly mean the number n?
+function fuzzyNumber(tok, n) {
+  const variants = NUM_VARIANTS[n];
+  if (!variants || CLIP_WORD_SET.has(tok)) return false;
+  const canonical = variants[0];
+  if (tok.startsWith(canonical) && tok.length <= canonical.length + 3) return true; // fours, fourth
+  if (EXTRA_FUZZ[n]?.includes(tok)) return true;
+  if (tok.length < 3) return false; // too little signal for edit distance
+  return variants.some((v) => v.length >= 4 && editDistance(tok, v) <= 1);
+}
+
+/* ---------------- echo ledger (v36) ----------------
+   The game authored every clip, so it knows the exact tokens its speaker
+   will emit — and each spoken token can echo back through the mic AT MOST
+   ONCE. speak() opens one discountable entry per token; the FIRST transcript
+   occurrence debits it (that's the echo), and every occurrence beyond the
+   budget is the child — accepted instantly, mid-clip or after, even appended
+   to the same recognition slot the echo landed in. This replaces v24/v25's
+   time windows and lifetime slot-poisoning, which ate real answers for ~3s
+   after every hint (July 12 playtest): distrust here is scoped to specific
+   CONTENT and at most one OCCURRENCE, never to a stretch of time.
+   Prior art: Sonos wake-word occurrence counting (US10475449). */
+
+const ECHO_ENTRY_TTL = 2000;  // ms past a clip's audio end that its tokens stay
+                              // discountable — must exceed the observed 0.5-1.5s
+                              // echo-final lag (v25) or a late echo self-answers.
+                              // Bounds the ECHO allowance, never gates the child.
+let speechGen = 0;            // bumped per speak(); voids stale unplayed budgets
+const ledger = [];            // { tok, numClass, clipKey, gen, wantedAtOpen,
+                              //   started, audibleEnd, spent }
+
+function ledgerExpire() {
+  const now = Date.now();
+  for (let i = ledger.length - 1; i >= 0; i--) {
+    const e = ledger[i];
+    if (e.audibleEnd && now - e.audibleEnd > ECHO_ENTRY_TTL) ledger.splice(i, 1);
+  }
+  while (ledger.length > 60) ledger.shift(); // hard cap: oldest budgets first
+}
+
+// audio.js: a speak() sequence is starting with these resolved clip keys.
+// Runs in the same tick as setVoiceMuted(true) — the gate asserts that.
+export function voiceSpeechStart(clipKeys) {
+  speechGen++;
+  // an interrupted speak never plays its remaining clips — void their budgets
+  for (let i = ledger.length - 1; i >= 0; i--) {
+    if (ledger[i].gen < speechGen && !ledger[i].started) ledger.splice(i, 1);
+  }
+  for (const key of clipKeys) {
+    for (const tok of (CLIP_TEXT[key] || '').split(' ').filter(Boolean)) {
+      ledger.push({
+        tok,
+        numClass: STRICT_WORDS[tok],   // undefined for non-number clip words
+        clipKey: key,
+        gen: speechGen,
+        wantedAtOpen: wanted,          // hint/solo clips model the ANSWER; the
+                                       // victory lap plays with nothing armed
+        started: false,
+        audibleEnd: null,
+        spent: false,
+      });
+    }
+  }
+  ledgerExpire();
+}
+
+// NOTE: an interrupted speak() reports its cut clip's end AFTER the
+// interrupting speak has bumped speechGen — so these match on clip identity
+// and started-state, never on the current generation.
+export function voiceClipStart(clipKey) {
+  // newest un-started batch for this clip (repeat clips, e.g. solo prompts,
+  // can coexist across generations)
+  let gen = -1;
+  for (const e of ledger) if (e.clipKey === clipKey && !e.started && e.gen > gen) gen = e.gen;
+  for (const e of ledger) if (e.clipKey === clipKey && e.gen === gen) e.started = true;
+}
+
+export function voiceClipEnd(clipKey) {
+  const now = Date.now();
+  for (const e of ledger) {
+    if (e.clipKey === clipKey && e.started && !e.audibleEnd) e.audibleEnd = now;
+  }
+}
+
+// hushSpeech(): the playing clip was cut — close its entries now (its audio
+// DID reach the room up to this moment) and void clips that never started.
+export function voiceSpeechHush() {
+  const now = Date.now();
+  for (let i = ledger.length - 1; i >= 0; i--) {
+    const e = ledger[i];
+    if (e.started && !e.audibleEnd) e.audibleEnd = now;
+    else if (!e.started) ledger.splice(i, 1);
+  }
+}
+
+// An open (unexpired, unspent) entry matching this transcript token —
+// literal match for any clip word, number-CLASS match for number content
+// ('hive'/'5' debit a spoken 'five'; a child's 'two' never debits 'to').
+// Fuzzy near-misses debit too: whatever disguise a spoken number's echo
+// wears in the transcript, it must spend the same budget it would have
+// spent undisguised — otherwise the fuzzy tier would be a self-answer hole.
+function openEntry(tok) {
+  const now = Date.now();
+  const cls = WORDS[tok]; // undefined for non-number transcript tokens
+  for (const e of ledger) {
+    if (e.spent) continue;
+    if (e.audibleEnd && now - e.audibleEnd > ECHO_ENTRY_TTL) continue;
+    if (e.tok === tok) return e;
+    if (e.numClass === undefined) continue;
+    if (cls !== undefined ? e.numClass === cls : fuzzyNumber(tok, e.numClass)) return e;
+  }
+  return null;
+}
+
+/* ---------------- utterance slot diffing (replaces mutedBornUtt) ----------
+   The recognizer grows ONE result slot per utterance (interim → final), and
+   on iOS the child's answer often lands in the SAME slot as the game's echo.
+   v25 poisoned such slots for life — the diagnosed ~3s deafness. Instead:
+   per slot, process only the class-normalized multiset DIFFERENCE vs what
+   that slot already delivered. An echo final that rewrites 'five'→'5'
+   contributes nothing; a child answer appended to the echo's slot is pure
+   new tokens and lands immediately. */
+
+const uttSeen = new Map(); // uttKey → { counts: Map(class → n), echoProne }
+
+function tokClass(tok) { return WORDS[tok] !== undefined ? String(WORDS[tok]) : tok; }
+
+// Returns the ORIGINAL tokens that are new for this slot, in order, and
+// updates the slot record. null key (tests, unknown) = no diffing.
+function slotNewTokens(uttKey, tokens) {
+  if (uttKey === null) return tokens;
+  let rec = uttSeen.get(uttKey);
+  if (!rec) {
+    rec = { counts: new Map(), echoProne: muted };
+    uttSeen.set(uttKey, rec);
+    if (uttSeen.size > 24) uttSeen.delete(uttSeen.keys().next().value);
+  }
+  const budget = new Map(rec.counts);
+  const fresh = [];
+  const seen = new Map();
+  for (const tok of tokens) {
+    const c = tokClass(tok);
+    seen.set(c, (seen.get(c) || 0) + 1);
+    const b = budget.get(c) || 0;
+    if (b > 0) budget.set(c, b - 1); // already delivered by this slot
+    else fresh.push(tok);
+  }
+  // remember the LARGEST multiset this slot has delivered per class
+  for (const [c, n] of seen) rec.counts.set(c, Math.max(rec.counts.get(c) || 0, n));
+  return fresh;
+}
+
+function slotEchoProne(uttKey) {
+  if (uttKey === null) return muted; // tests/unknown: the live speech state
+  return uttSeen.get(uttKey)?.echoProne || false;
+}
 
 /* ---------------- chain counting ---------------- */
 // Theo counts in bursts ("one… two… three…" at ~1/sec). We accept every
@@ -199,58 +405,36 @@ const MUTED_WORDS = Object.fromEntries(Object.entries(WORDS)
 let wantedDir = 1;             // +1 build, −1 countdown — drives chain validation
 const pending = [];            // numbers said ahead of the game: [{ n, t }]
 const PENDING_TTL = 4000;
-let lastHintBlocked = false;   // set by extractChain, read for the audit verdict
-
-// Utterance identity (v25). The recognizer delivers interim and final
-// results of ONE utterance in the same result slot — so the speaker's echo
-// of a hint, whose utterance always BEGINS while the game is speaking,
-// stays identifiable even when its final transcript posts a second after
-// the unmute. Time windows can't make that call: an echo's late final and
-// the child's prompt answer both land 0.5–1.5s after the clip ends, and
-// v24's post-end windows ate Tucker's real answers (July 11 playtest log).
-// An utterance born muted is treated as game audio for its whole lifetime;
-// a fresh utterance is never time-blocked at all.
-const mutedBornUtt = new Set();
-function utteranceEcho(key) {
-  if (key === null) return false;
-  if (muted) {
-    mutedBornUtt.add(key);
-    if (mutedBornUtt.size > 40) mutedBornUtt.delete(mutedBornUtt.values().next().value);
-  }
-  return mutedBornUtt.has(key);
-}
 
 export function voiceQueueSize() { return pending.length; }
 
-// tokens → in-order chain-extending numbers (digit runs expanded).
-// gameVoice: this transcript is — or began during — the game's own speech.
-function extractChain(tokens, words, gameVoice) {
+// tokens → in-order chain-extending numbers (digit runs expanded). Echo
+// rejection happens BEFORE this, in the ledger debit pass — by the time
+// tokens reach the chain they are trusted as the child, so the FULL fuzzy
+// WORDS map applies at all times (no vocabulary narrowing while the game
+// speaks; dropping homophones mid-speech was the v23 playtest bug).
+// Tokens the WORDS map doesn't know get one more chance, biased toward the
+// answer: a near-miss of exactly the expected number (see fuzzyNumber).
+let lastFuzzy = []; // "tok→n" notes for the audit trail, reset per hear()
+function extractChain(tokens) {
   if (wanted === null) return [];
   const accepted = [];
-  // The game sometimes speaks the wanted number itself (rung-3 hint, the
-  // countdown's solo prompts) — its own echo must not answer the question.
-  // Blocked iff the wanted number is part of the current/latest speech AND
-  // this transcript belongs to that speech (muted now, or utterance born
-  // muted). No post-end time window: the child repeating the modeled number
-  // right after the clip is call-and-response — the point of the hint — and
-  // v24's 1s window systematically ate it (recognition posts answers
-  // 0.5–1.5s after the clip, indistinguishable from the echo BY TIME alone).
-  const stamp = recentGameNums.get(wanted) || 0;
-  const hintBlocked = gameVoice && stamp >= muteStartedAt;
   const expectAt = () => {
     if (accepted.length) return accepted[accepted.length - 1] + wantedDir;
     return pending.length ? pending[pending.length - 1].n + wantedDir : wanted;
   };
   for (const tok of tokens) {
     const candidates = [];
-    if (words[tok] !== undefined) candidates.push(words[tok]);
+    if (WORDS[tok] !== undefined) candidates.push(WORDS[tok]);
     else if (/^\d+$/.test(tok)) {
       const digits = [...tok].map(Number);
       if (digits.every((d) => d >= 1 && d <= 9)) candidates.push(...digits);
+    } else if (fuzzyNumber(tok, expectAt())) {
+      candidates.push(expectAt());
+      lastFuzzy.push(`${tok}→${expectAt()}`);
     }
     for (const n of candidates) {
       if (n !== expectAt()) continue; // doesn't extend the chain → noise
-      if (n === wanted && !accepted.length && !pending.length && hintBlocked) { lastHintBlocked = true; continue; }
       accepted.push(n);
     }
   }
@@ -275,71 +459,98 @@ let titleCommands = null;
 export function setTitleCommands(map) { titleCommands = map; }
 
 // Core of recognition handling; also reachable as window.__hear for testing.
-// uttKey identifies which utterance a result belongs to (see utteranceEcho);
-// null (tests, unknown) falls back to the plain muted state.
+// uttKey identifies which result slot a transcript belongs to (slot diffing);
+// null (tests, unknown) processes the full transcript every call.
+// Pipeline: slot-diff → phrase strip → ledger debit → chain. No time gate
+// anywhere: an echo is rejected because it is the first occurrence of a
+// token the speaker just emitted, never because of when it arrived.
 function hear(transcript, uttKey = null) {
-  // Must run first even for transcripts we discard: it MARKS the utterance
-  // while muted so its post-unmute finals stay recognizable as game audio.
-  const gameVoice = utteranceEcho(uttKey) || muted;
-  let tokens = (transcript || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  if (!tokens.length) return;
-  let joined = tokens.join(' ');
+  const allTokens = (transcript || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!allTokens.length) return;
+  const joined = allTokens.join(' ');
 
-  if (!gameVoice) {
-    // The game's own lines coming back through the speakers: recognition lags
-    // real time, so a late transcript often merges the game's prompt with the
-    // child's answer ("counting up what comes after three FOUR"). Discarding
-    // the whole thing would throw the answer away — strip the game's words
-    // and process whatever is left. A multi-word transcript that is itself a
-    // fragment of a phrase is all game speech; single words are exempt from
-    // that check — "one" must not die because "one more launch" contains it.
-    let rest = ` ${joined} `;
-    for (const p of GAME_PHRASES) {
-      if (tokens.length >= 2 && p.includes(joined)) { voiceAudit({ heard: joined, verdict: 'game-phrase' }); return; }
-      while (rest.includes(` ${p} `)) rest = rest.replace(` ${p} `, ' ');
-    }
-    if (rest.trim() !== joined) {
-      tokens = rest.split(/[^a-z0-9]+/).filter(Boolean);
-      if (!tokens.length) { voiceAudit({ heard: joined, verdict: 'game-phrase' }); return; }
-      joined = tokens.join(' ');
-    }
+  // A multi-word transcript that is itself a fragment of a game line is all
+  // game speech, whatever slot it lives in (single words are exempt — "one"
+  // must not die because "one more launch" contains it).
+  if (allTokens.length >= 2 && GAME_PHRASES.some((p) => p.includes(joined))) {
+    voiceAudit({ heard: joined, muted, verdict: 'game-phrase' });
+    return;
   }
+
+  // Only what this slot hasn't already delivered — an echo final that
+  // rewrites its interim ('five' → '5') contributes nothing; a child answer
+  // appended to the echo's slot is pure new tokens.
+  let tokens = slotNewTokens(uttKey, allTokens);
+  if (!tokens.length) { voiceAudit({ heard: joined, muted, verdict: 'echo-final' }); return; }
+
+  // Strip whole game lines out of merged transcripts ("counting up what
+  // comes after three FOUR") and process the remainder — v16's fix, now
+  // unconditional since it's content-based, not state-based.
+  let rest = ` ${tokens.join(' ')} `;
+  for (const p of GAME_PHRASES) {
+    while (rest.includes(` ${p} `)) rest = rest.replace(` ${p} `, ' ');
+  }
+  const stripped = rest.split(/[^a-z0-9]+/).filter(Boolean);
+  const phraseContent = stripped.length !== tokens.length;
+  if (!stripped.length) { voiceAudit({ heard: joined, muted, verdict: 'game-phrase' }); return; }
+  tokens = stripped;
 
   // Title-screen theme words. Only between rounds (no expectation armed) and
   // never while the game itself is speaking — a mid-round "dragon" must never
   // switch the world out from under an in-progress question.
-  if (!gameVoice && wanted === null && titleCommands) {
+  if (!muted && wanted === null && titleCommands) {
     for (const tok of tokens) {
       if (titleCommands[tok]) { voiceAudit({ heard: joined, verdict: `theme:${tok}` }); titleCommands[tok](); return; }
     }
   }
 
-  // While the game speaks (or the utterance began during its speech), fuzzy
-  // matching narrows to words the game itself never says (MUTED_WORDS) — a
-  // clear chain still cuts through, homophone or not, and the game's own
-  // lines can never count themselves.
-  lastHintBlocked = false;
-  const accepted = extractChain(tokens, gameVoice ? MUTED_WORDS : WORDS, gameVoice);
+  // Ledger debit pass: the first occurrence of a token the speaker just
+  // emitted is the echo — spent, dropped. Debit only with evidence this
+  // delivery carries game audio: (a) the slot's FIRST tokens arrived during
+  // speech, (b) game-line content rode in the same delivery, or (c) the token
+  // is the answer a hint modeled for the CURRENTLY armed question (the v25
+  // late-final path — a hint echo must never self-answer, marked slot or
+  // fresh). Everything past the budget is the child, at zero delay.
+  let contaminated = phraseContent;
+  const echoProne = slotEchoProne(uttKey);
+  const survivors = [];
+  let debits = 0;
+  for (const tok of tokens) {
+    const entry = openEntry(tok);
+    if (entry && !entry.spent) {
+      const modelsWanted = wanted !== null && WORDS[tok] === wanted && entry.wantedAtOpen === wanted;
+      if (echoProne || contaminated || modelsWanted) {
+        entry.spent = true;
+        debits++;
+        if (entry.numClass === undefined) contaminated = true; // clip words around a number = prompt echo
+        continue;
+      }
+    }
+    survivors.push(tok);
+  }
+
+  lastFuzzy = [];
+  const accepted = extractChain(survivors);
   if (accepted.length) {
     const now = Date.now();
     for (const n of accepted) pending.push({ n, t: now });
     caption(`🗣 “${joined}”  → ${accepted.join(', ')} ✓`, true);
-    voiceAudit({ heard: joined, muted: gameVoice, verdict: `accepted ${accepted.join(',')}` });
+    voiceAudit({
+      heard: joined, muted, debits: debits || undefined,
+      fuzzy: lastFuzzy.length ? lastFuzzy.join(' ') : undefined,
+      verdict: `accepted ${accepted.join(',')}`,
+    });
     drainPending();
     return;
   }
-  if (gameVoice) {
-    // The game's own voice (live, or an echo utterance finalizing after the
-    // unmute) — keep the evidence: silent drops made v23 undiagnosable.
-    voiceAudit({
-      heard: joined, muted: gameVoice,
-      verdict: lastHintBlocked ? 'hint-blocked' : (muted ? 'muted-drop' : 'echo-final'),
-    });
+  if (debits) {
+    // the delivery was (at least partly) the game's own voice coming back —
+    // keep the evidence: silent drops made v23 undiagnosable.
+    voiceAudit({ heard: joined, muted, debits, verdict: 'echo-debit' });
     caption(`🗣 “${joined}” · 🔇`, false);
     return;
   }
-
-  voiceAudit({ heard: joined, verdict: wanted === null ? 'not-armed' : 'no-match' });
+  voiceAudit({ heard: joined, muted: muted || undefined, verdict: wanted === null ? 'not-armed' : 'no-match' });
   caption(`🗣 “${joined}”`, false);
 }
 
@@ -355,8 +566,8 @@ function handleResults(e) {
 }
 
 // Debug/audit hooks (harmless in production): __hear('seven') simulates the
-// recognizer hearing that phrase; __voiceMuted lets the test gate wait for
-// the un-muted state, where the phrase-strip path (not MUTED_WORDS) runs;
+// recognizer hearing that phrase; __voiceMuted reports the speech-active
+// status flag (clips playing + 200ms tail) the gate uses to time injections;
 // __hearLog is the persistent transcript-verdict audit (see voiceAudit).
 if (typeof window !== 'undefined') {
   window.__hear = (t, uttKey = null) => hear(t, uttKey); // optional utterance key, e.g. __hear('five', 'echo:1')
@@ -450,12 +661,11 @@ export function voiceExpect(n, cb, dir = wantedDir) {
 }
 export function voiceClearExpect() { wanted = null; onMatch = null; pending.length = 0; }
 
-// audio.js mutes recognition while the game's own voice is playing.
-// muteStartedAt lets the hint guard tell "this number is part of the speech
-// playing right now" (stamp ≥ mute start) from a stale stamp.
-let muteStartedAt = 0;
+// audio.js flags when the game's own voice is audible (clips playing plus a
+// 200ms recognition tail). v36: this is a STATUS, not a gate — it feeds the
+// debug badge, slot echo-prone tagging, and title-command suppression; no
+// transcript is ever dropped because of it. The echo ledger owns rejection.
 export function setVoiceMuted(m) {
-  if (m && !muted) muteStartedAt = Date.now();
   muted = m;
   updateDot();
 }

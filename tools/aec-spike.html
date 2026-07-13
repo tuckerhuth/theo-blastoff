@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blast Off — AEC spike</title>
+<style>
+  body { font-family: -apple-system, sans-serif; margin: 16px; max-width: 640px; }
+  button { font-size: 16px; padding: 10px 14px; margin: 4px 4px 4px 0; border-radius: 8px; }
+  button.on { background: #2c7; color: #fff; }
+  #log { white-space: pre-wrap; font: 12px/1.5 ui-monospace, monospace; background: #f4f4f8;
+         border-radius: 8px; padding: 10px; margin-top: 12px; max-height: 45vh; overflow-y: auto; }
+  .num { color: #c22; font-weight: 700; }
+  h1 { font-size: 20px; } h2 { font-size: 15px; margin: 18px 0 4px; }
+</style>
+</head>
+<body>
+<h1>AEC spike — does iPad Safari cancel the game's own clips?</h1>
+<p>Run each config on the REAL iPad (Safari tab AND installed PWA), speaker loud,
+room quiet, nobody talking. Play the loop and count how many number words the
+recognizer transcribes (echo leak) and whether game audio ducks. Compare:</p>
+<ol>
+  <li><b>Baseline</b> — recognizer only (what the game ships today).</li>
+  <li><b>+ gUM hold</b> — parallel getUserMedia(echoCancellation:true) held open.</li>
+  <li><b>+ reroute</b> — clips rendered via MediaStreamTrack (<code>srcObject</code>),
+      the only path WebKit guarantees into the VPIO echo-cancellation reference.</li>
+</ol>
+
+<h2>1 · Audio</h2>
+<button id="bInit">init audio + load clips</button>
+<button id="bPlay">play n1–n5 loop</button>
+<span id="sAudio">–</span>
+
+<h2>2 · Config toggles</h2>
+<button id="bGum">hold gUM(EC:true)</button>
+<button id="bRoute">reroute output → srcObject</button>
+
+<h2>3 · Recognizer</h2>
+<button id="bRec">start recognition</button>
+<span id="sRec">–</span>
+<div>number words heard during playback (echo leak): <b id="leak">0</b></div>
+
+<h2>4 · Mic residual (gUM required)</h2>
+<button id="bMeasure">record mic during one loop → RMS</button>
+<span id="sRms">–</span>
+
+<div id="log"></div>
+
+<script>
+const logEl = document.getElementById('log');
+const log = (m, cls) => {
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = `${new Date().toISOString().slice(11, 19)}  ${m}`;
+  logEl.prepend(line);
+};
+const NUMS = new Set(['one','two','three','four','five','1','2','3','4','5','to','free','for','tree']);
+
+let ctx, master, buffers = [], gum = null, routed = false, sinkEl = null, playing = false;
+let playUntil = 0, leak = 0;
+
+document.getElementById('bInit').onclick = async () => {
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain();
+  master.connect(ctx.destination);
+  for (let n = 1; n <= 5; n++) {
+    const ab = await (await fetch(`../assets/voice/n${n}.m4a`)).arrayBuffer();
+    buffers.push(await ctx.decodeAudioData(ab));
+  }
+  document.getElementById('sAudio').textContent = `loaded ${buffers.length} clips`;
+  log('audio ready');
+};
+
+document.getElementById('bPlay').onclick = async () => {
+  if (!buffers.length) return log('init first');
+  playing = true;
+  for (const buf of buffers) {
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(master); src.start();
+    await new Promise(r => setTimeout(r, buf.duration * 1000 + 400));
+  }
+  playUntil = Date.now() + 1500; // count trailing echo transcripts too
+  playing = false;
+  log('loop done');
+};
+
+document.getElementById('bGum').onclick = async (e) => {
+  if (gum) { gum.getTracks().forEach(t => t.stop()); gum = null; e.target.classList.remove('on'); return log('gUM released'); }
+  try {
+    gum = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
+    e.target.classList.add('on');
+    const s = gum.getAudioTracks()[0].getSettings();
+    log(`gUM held — echoCancellation setting: ${s.echoCancellation}`);
+  } catch (err) { log(`gUM failed: ${err.name}`); }
+};
+
+document.getElementById('bRoute').onclick = (e) => {
+  if (!ctx) return log('init first');
+  if (routed) return log('already rerouted (reload to reset)');
+  const dest = ctx.createMediaStreamDestination();
+  master.disconnect(); master.connect(dest);
+  sinkEl = document.createElement('audio');
+  sinkEl.srcObject = dest.stream;
+  sinkEl.setAttribute('playsinline', '');
+  document.body.appendChild(sinkEl);
+  sinkEl.play().then(() => log('output rerouted via srcObject — VERIFY you still hear clips!'))
+    .catch(err => log(`sink play() rejected: ${err.name}`));
+  routed = true; e.target.classList.add('on');
+};
+
+document.getElementById('bRec').onclick = () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return log('no SpeechRecognition');
+  const rec = new SR();
+  rec.continuous = true; rec.interimResults = true; rec.lang = 'en-US';
+  rec.onstart = () => { document.getElementById('sRec').textContent = 'live'; log('rec live'); };
+  rec.onend = () => { document.getElementById('sRec').textContent = 'ended'; log('rec end'); setTimeout(() => { try { rec.start(); } catch {} }, 200); };
+  rec.onerror = (ev) => log(`rec error: ${ev.error}`);
+  rec.onresult = (ev) => {
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const t = ev.results[i][0].transcript.trim();
+      const during = playing || Date.now() < playUntil;
+      const hasNum = t.toLowerCase().split(/[^a-z0-9]+/).some(w => NUMS.has(w));
+      if (during && hasNum) { leak++; document.getElementById('leak').textContent = leak; }
+      log(`heard${during ? ' [during playback]' : ''}: "${t}"`, during && hasNum ? 'num' : '');
+    }
+  };
+  try { rec.start(); } catch (err) { log(`start failed: ${err.name}`); }
+};
+
+document.getElementById('bMeasure').onclick = async () => {
+  if (!gum) return log('hold gUM first');
+  const mr = new MediaRecorder(gum);
+  const chunks = [];
+  mr.ondataavailable = (e) => chunks.push(e.data);
+  mr.start();
+  log('recording mic during one loop…');
+  await document.getElementById('bPlay').onclick();
+  mr.stop();
+  await new Promise(r => (mr.onstop = r));
+  const ab = await new Blob(chunks).arrayBuffer();
+  try {
+    const decoded = await ctx.decodeAudioData(ab);
+    const d = decoded.getChannelData(0);
+    let sum = 0; for (let i = 0; i < d.length; i++) sum += d[i] * d[i];
+    const rms = Math.sqrt(sum / d.length);
+    document.getElementById('sRms').textContent = `RMS ${rms.toFixed(5)}`;
+    log(`mic residual RMS during playback: ${rms.toFixed(5)} (compare across configs)`);
+  } catch { log('decode failed (codec) — compare leak counts instead'); }
+};
+</script>
+</body>
+</html>

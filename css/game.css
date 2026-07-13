@@ -261,6 +261,65 @@ body {
 #micCaption.idle { opacity: .5; }
 #micCaption.muted-state { color: #ff7a68; opacity: .85; }
 
+/* DEBUG: collapsed tab (bottom-right, clear of the tile tray) that expands
+   into a live voice-log panel — "what was heard and why it was/wasn't
+   accepted," visible without the parent-panel hold gesture. Not styled to
+   look nice; styled to be legible while watching a real playtest. */
+#debugTab {
+  position: absolute;
+  bottom: max(2vh, calc(env(safe-area-inset-bottom) + 1vh));
+  right: max(2vmin, env(safe-area-inset-right));
+  z-index: 40;
+  width: 8vmin; height: 8vmin;
+  border: none; border-radius: 50%;
+  font-size: 4vmin;
+  background: rgba(20, 24, 60, .55);
+  box-shadow: 0 .3vmin 1vmin rgba(0,0,0,.4);
+  cursor: pointer;
+}
+#debugTab.open { background: rgba(60, 140, 230, .75); }
+
+#debugPanel {
+  position: absolute;
+  bottom: max(11vh, calc(env(safe-area-inset-bottom) + 10vh));
+  right: max(2vmin, env(safe-area-inset-right));
+  z-index: 40;
+  width: min(88vw, 480px);
+  max-height: 55vh;
+  display: flex; flex-direction: column;
+  background: rgba(8, 10, 26, .92);
+  border-radius: 1.2vmin;
+  box-shadow: 0 1vmin 3vmin rgba(0,0,0,.5);
+  overflow: hidden;
+}
+#debugPanelHead {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 1.2vh 1.6vmin;
+  background: rgba(60, 140, 230, .25);
+  color: #cfe0ff;
+  font-size: 2vmin;
+  font-weight: 600;
+}
+#debugPanelHead button {
+  font-size: 1.7vmin;
+  padding: .4vh 1.2vmin;
+  border: none; border-radius: 1vmin;
+  background: rgba(255,255,255,.15);
+  color: #fff;
+  cursor: pointer;
+}
+#debugLog {
+  margin: 0;
+  padding: 1vh 1.6vmin 1.6vh;
+  overflow-y: auto;
+  font: 1.7vmin/1.5 ui-monospace, monospace;
+  color: #b9c2e8;
+  white-space: pre-wrap;
+}
+#debugLog .dbg-accept { color: #7ed957; }
+#debugLog .dbg-block { color: #ff7a68; }
+#debugLog .dbg-clip { color: #7fb0ff; opacity: .8; }
+
 /* on-device error reporter — debugging eyes for phones we can't inspect */
 #errBadge {
   position: absolute;

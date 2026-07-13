@@ -17,6 +17,9 @@ trap 'kill $SRV 2>/dev/null' EXIT
 sleep 1
 
 fail=0
+echo "── clip-text lockstep ──────────────────"
+node tools/check-clip-text.mjs || fail=1
+
 for eng in chromium webkit; do
   for dev in desktop iphone; do
     echo "── $eng / $dev ─────────────────────────"

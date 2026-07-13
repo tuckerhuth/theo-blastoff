@@ -12,6 +12,24 @@ export const STICKERS = ['🚀', '⭐', '👨‍🚀', '🪐', '🌙', '☄️',
 
 const $ = (id) => document.getElementById(id);
 
+// One audit-log entry (voiceAudit() in voice.js) → one readable line. Shared
+// by the parent panel's post-session table and the live debug panel.
+function formatVoiceLogLine(e) {
+  const time = new Date(e.t).toLocaleTimeString();
+  if (e.rec !== undefined) return `${time}  🎙 ${e.rec}${e.note ? ` (${e.note})` : ''}${e.reason ? ` ·${e.reason}` : ''}`;
+  if (e.clip !== undefined) return `${time}  ▶ ${e.clip}`;
+  const debits = e.debits ? ` (×${e.debits} debited)` : '';
+  const fuzzy = e.fuzzy ? ` (fuzzy ${e.fuzzy})` : '';
+  return `${time}  “${e.heard}”${e.muted ? ' 🔇' : ''} → ${e.verdict}${debits}${fuzzy}`;
+}
+
+// CSS class per line, for the live debug panel's at-a-glance coloring.
+function voiceLogLineClass(e) {
+  if (e.rec !== undefined || e.clip !== undefined) return 'dbg-clip';
+  if (String(e.verdict).startsWith('accepted')) return 'dbg-accept';
+  return 'dbg-block';
+}
+
 export const ui = {
   els: {},
 
@@ -19,7 +37,8 @@ export const ui = {
     for (const id of ['app', 'scene', 'fx', 'tray', 'bigNum', 'stars', 'banner', 'ghost',
       'title', 'titleShelf', 'ceremony', 'bigSticker', 'ceremonyShelf',
       'alldone', 'btnOneMore', 'btnAllDone', 'parent', 'parentStats', 'parentToggles',
-      'parentLevels', 'parentVoice', 'micDot', 'parentBtn', 'btnTutorial', 'btnReset', 'btnCloseParent', 'playHint']) {
+      'parentLevels', 'parentVoice', 'micDot', 'parentBtn', 'btnTutorial', 'btnReset', 'btnCloseParent', 'playHint',
+      'debugTab', 'debugPanel', 'debugLog', 'debugCopy']) {
       this.els[id] = $(id);
     }
     this.setStars(0);
@@ -293,6 +312,8 @@ export const ui = {
   // interleaved with the clips the game spoke. This is how "he said the
   // right number and nothing happened" gets diagnosed after a play session
   // — mid-speech drops leave no other trace (see voiceAudit in voice.js).
+  // Shared by the parent panel's post-session table and the live debug
+  // panel below — same verdicts, same reasons, two audiences.
   renderParentVoice() {
     const wrap = this.els.parentVoice;
     wrap.replaceChildren();
@@ -303,12 +324,7 @@ export const ui = {
     wrap.appendChild(h);
     const pre = document.createElement('pre');
     pre.className = 'voicelog';
-    pre.textContent = log.slice(-80).reverse().map((e) => {
-      const time = new Date(e.t).toLocaleTimeString();
-      if (e.rec !== undefined) return `${time}  🎙 ${e.rec}${e.note ? ` (${e.note})` : ''}${e.reason ? ` ·${e.reason}` : ''}`;
-      if (e.clip !== undefined) return `${time}  ▶ ${e.clip}`;
-      return `${time}  “${e.heard}”${e.muted ? ' 🔇' : ''} → ${e.verdict}`;
-    }).join('\n');
+    pre.textContent = log.slice(-80).reverse().map(formatVoiceLogLine).join('\n');
     wrap.appendChild(pre);
     const copy = document.createElement('button');
     copy.textContent = `Copy full log (${log.length})`;
@@ -318,6 +334,42 @@ export const ui = {
         () => { copy.textContent = 'Copy blocked — screenshot instead'; });
     });
     wrap.appendChild(copy);
+  },
+
+  // DEBUG: a small always-reachable tab (no parent-panel hold gesture) that
+  // expands into a LIVE voice log — "what were the inputs, why were they
+  // flagged" — while actually watching a playtest, not just after the fact.
+  // Built with textContent per line (never innerHTML): a transcript is
+  // speech someone said, so it's untrusted text, not markup to trust.
+  // Refreshes only while expanded (fx.js's demand-driven precedent — no
+  // point re-rendering an off-screen list every tick).
+  initDebugPanel() {
+    if (!voiceSupported()) return; // nothing to show without a recognizer
+    const { debugTab, debugPanel, debugLog, debugCopy } = this.els;
+    debugTab.classList.remove('hidden');
+    let timer = null;
+    const render = () => {
+      debugLog.replaceChildren();
+      for (const e of voiceAuditLog().slice(-60).reverse()) {
+        const line = document.createElement('div');
+        line.className = voiceLogLineClass(e);
+        line.textContent = formatVoiceLogLine(e);
+        debugLog.appendChild(line);
+      }
+    };
+    const setOpen = (open) => {
+      debugTab.classList.toggle('open', open);
+      debugPanel.classList.toggle('hidden', !open);
+      clearInterval(timer);
+      timer = null;
+      if (open) { render(); timer = setInterval(render, 400); }
+    };
+    debugTab.addEventListener('click', () => setOpen(debugPanel.classList.contains('hidden')));
+    debugCopy.addEventListener('click', () => {
+      navigator.clipboard?.writeText(JSON.stringify(voiceAuditLog())).then(
+        () => { debugCopy.textContent = 'copied ✓'; setTimeout(() => { debugCopy.textContent = 'copy'; }, 1200); },
+        () => { debugCopy.textContent = 'blocked'; });
+    });
   },
 
   // Visible ⚙️: instant click with a mouse (Theo doesn't use one), but on a

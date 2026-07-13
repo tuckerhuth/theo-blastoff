@@ -3,7 +3,7 @@
 // (required by iOS Safari).
 
 import { store } from './store.js';
-import { setVoiceMuted, noteGameSpeech, voiceAudit } from './voice.js';
+import { setVoiceMuted, voiceSpeechStart, voiceClipStart, voiceClipEnd, voiceSpeechHush, voiceAudit } from './voice.js';
 
 const CLIPS = [
   'n1','n2','n3','n4','n5','n6','n7','n8','n9','n10',
@@ -40,7 +40,6 @@ let ctx = null;
 let master = null;
 const buffers = new Map();  // keyed by clipKey(name), NOT the bare clip name
 let currentSpeech = null;   // { stop() } — so a new line can cut off the old one
-let lastSpoken = [];        // clip names of the speech now/last playing (for hush re-stamp)
 let rumbleNodes = null;
 
 // Rolling audit of what the voice actually said, and when. Exposed as
@@ -125,9 +124,8 @@ export async function speak(names, { gap = 0.08, interrupt = true, skipIfBusy = 
   let cancelled = false;
   currentSpeech = { stop() { cancelled = true; sources.forEach(s => { try { s.stop(); } catch {} }); } };
   const mine = currentSpeech;
-  setVoiceMuted(true); // the mic must not hear the game count to itself
-  noteGameSpeech(list); // so late-arriving echo transcripts get discounted
-  lastSpoken = list;
+  setVoiceMuted(true); // status flag (badge + slot tagging), same tick as ever
+  voiceSpeechStart(list.map(clipKey)); // open one echo budget per token to be spoken
 
   for (const name of list) {
     if (cancelled) return;
@@ -141,19 +139,21 @@ export async function speak(names, { gap = 0.08, interrupt = true, skipIfBusy = 
       sources.push(src);
       src.onended = res;
       src.start();
+      voiceClipStart(clipKey(name)); // this clip's echo budget is now live
       logSpeech(name);
       setTimeout(res, buf.duration * 1000 + 300); // safety net
     });
-    // Echo windows measure from when a clip's AUDIO ends, not when the
-    // sequence started — re-stamp so voice.js guards track real sound and
-    // neither expire mid-clip nor over-block after short clips.
-    noteGameSpeech([name]);
+    // Echo budgets expire from when a clip's AUDIO ends, not when the
+    // sequence started — stamp the real end so short clips aren't
+    // over-budgeted and long ones don't expire mid-air.
+    voiceClipEnd(clipKey(name));
     if (gap) await new Promise(res => setTimeout(res, gap * 1000));
   }
   if (currentSpeech === mine) {
     currentSpeech = null;
-    // tail: recognition results arrive well after the audio they transcribe
-    setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 700);
+    // tail: only a status/slot-tagging window now (the ledger, not this flag,
+    // rejects echoes) — capped at 200ms per Tucker's usability ceiling.
+    setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 200);
   }
 }
 
@@ -165,10 +165,9 @@ export function hushSpeech() {
   currentSpeech.stop();
   currentSpeech = null;
   logSpeech('(hushed)');
-  noteGameSpeech(lastSpoken); // the audio stopped NOW — echo windows anchor here
-  // Same recognition-lag tail as a natural finish, so a late echo of the
-  // clip we just cut doesn't get treated as the child speaking.
-  setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 700);
+  voiceSpeechHush(); // close the cut clip's echo budget now; void unplayed clips
+  // Same status tail as a natural finish (200ms cap).
+  setTimeout(() => { if (!currentSpeech) setVoiceMuted(false); }, 200);
 }
 
 /* ---------------- synthesized SFX ---------------- */
@@ -252,6 +251,36 @@ function monkeyScreech() {
   o2.start(t0 + 0.16); o2.stop(t0 + 0.8);
 }
 
+// Heraldic trumpet fanfare — the knight's blast-off call, replacing the
+// rocket engine whoosh where a launching-spacecraft sound doesn't fit a
+// sword fight. Brass timbre via two slightly-detuned sawtooths per note
+// (same "double-oscillator richness" trick as monkeyScreech's second call),
+// through one shared bandpass so the whole run reads as one horn.
+function knightFanfare() {
+  if (!ctx || !store.data.settings.sfx) return;
+  const t0 = ctx.currentTime;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 1.4;
+  bp.connect(master);
+  // "ta-ta-ta — DAA!": three short rising calls, then a held blast a 4th up.
+  const notes = [
+    { f: 392, t: 0, dur: 0.14, peak: 0.5 },    // G4
+    { f: 523, t: 0.16, dur: 0.14, peak: 0.55 }, // C5
+    { f: 659, t: 0.32, dur: 0.16, peak: 0.6 },  // E5
+    { f: 784, t: 0.52, dur: 0.9, peak: 0.7 },   // G5 — the sustained blast
+  ];
+  for (const { f, t, dur, peak } of notes) {
+    for (const detune of [0, 6]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = detune;
+      const g = ctx.createGain();
+      env(g, t0 + t, 0.015, peak, dur);
+      o.connect(g); g.connect(bp);
+      o.start(t0 + t); o.stop(t0 + t + dur + 0.1);
+    }
+  }
+}
+
 export const sfx = {
   press()  { tone({ freq: 420, type: 'triangle', dur: 0.08, peak: 0.12 }); },
 
@@ -291,6 +320,7 @@ export const sfx = {
 
   whoosh() {
     if (voicePack === 'monkey') return; // the whoop fires at the cheer (theme), not the rocket swoosh
+    if (voicePack === 'knight') return knightFanfare(); // a launching-rocket sound doesn't fit a sword fight
     if (!ctx || !store.data.settings.sfx) return;
     const t0 = ctx.currentTime;
     const src = ctx.createBufferSource();
