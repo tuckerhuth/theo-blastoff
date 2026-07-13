@@ -110,11 +110,14 @@ let captionTimer = null;
 
 export function voiceSupported() { return !!SR; }
 
-// parent-panel health line
+// parent-panel health line. "listening" requires recent recognizer EVENTS,
+// not just a live session object — a zombie session must read as stale, not
+// listening (the July 13 health line lied for 2.5 deaf minutes).
 export function micStatus() {
   if (!SR) return 'unsupported';
   if (!store.data.settings.micOn) return 'off';
-  return listening ? 'listening' : 'starting';
+  if (!listening) return 'starting';
+  return recLooksDeaf() ? 'stale' : 'listening';
 }
 
 export function initVoice(indicatorEl, transcriptEl) {
@@ -127,25 +130,45 @@ export function initVoice(indicatorEl, transcriptEl) {
 // while a transcript is on screen). This is the authoritative signal for
 // watching the hint-block window in real time. — Tucker, debugging the
 // post-hint deafness bug.
+//
+// Three states, because "session alive" is NOT "audio flowing" (July 13:
+// a zombie session sat listening-green and deaf for 2.5 minutes):
+//   green 🎤 listening    — live session with recent recognizer events
+//   blue  📢 game talking — the game's own voice is audible. A STATUS, not
+//                           a mute: input is fully live, the echo ledger
+//                           handles the game's own words. Nothing named
+//                           "muted" survives because nothing IS muted.
+//   amber 🦻 deaf?        — live session but eventless past the healthy-
+//                           silence window; a rebuild is imminent (energy
+//                           detector ~2-3s, silence fallback 20s)
+const REC_DEAF_HINT_MS = 10000;
+function recLooksDeaf() {
+  return listening && !muted && lastRecEvent && Date.now() - lastRecEvent > REC_DEAF_HINT_MS;
+}
+
 function updateDot() {
   if (dotEl) {
     const on = listening && store.data.settings.micOn;
+    const deaf = recLooksDeaf();
     dotEl.classList.toggle('hidden', !on);
     dotEl.classList.toggle('muted', muted);
-    dotEl.textContent = muted ? '🔇' : '🎤';
+    dotEl.classList.toggle('stale', deaf);
+    dotEl.textContent = muted ? '📢' : (deaf ? '🦻' : '🎤');
   }
   refreshCaption();
 }
 
-// Steady state of the audit strip: "listening…"/"muted…" while the
+// Steady state of the audit strip: "listening…"/"game talking…" while the
 // recognizer is live, hidden when it isn't. No caption at all = recognition
 // is not running.
 function refreshCaption() {
   if (!captionEl || captionTimer) return; // a transcript is on screen — let it finish
   if (listening && store.data.settings.micOn) {
-    captionEl.textContent = muted ? '🔇 muted…' : '🎤 listening…';
-    captionEl.classList.toggle('idle', !muted);
+    const deaf = recLooksDeaf();
+    captionEl.textContent = muted ? '📢 game talking (still listening)' : (deaf ? '🦻 can’t hear — restarting ear…' : '🎤 listening…');
+    captionEl.classList.toggle('idle', !muted && !deaf);
     captionEl.classList.toggle('muted-state', muted);
+    captionEl.classList.toggle('stale-state', deaf);
     captionEl.classList.remove('match', 'hidden');
   } else {
     captionEl.classList.add('hidden');
@@ -157,7 +180,7 @@ function caption(text, matched) {
   if (!captionEl) return;
   captionEl.textContent = text;
   captionEl.classList.toggle('match', !!matched);
-  captionEl.classList.remove('idle', 'muted-state', 'hidden');
+  captionEl.classList.remove('idle', 'muted-state', 'stale-state', 'hidden');
   clearTimeout(captionTimer);
   captionTimer = setTimeout(() => { captionTimer = null; refreshCaption(); }, 2500);
 }
@@ -573,6 +596,16 @@ if (typeof window !== 'undefined') {
   window.__hear = (t, uttKey = null) => hear(t, uttKey); // optional utterance key, e.g. __hear('five', 'echo:1')
   window.__voiceMuted = () => muted;
   window.__hearLog = auditLog;
+  // recognizer health probe: seconds since the last SR event + whether the
+  // badge would call the ear deaf (zombie-session diagnosis, July 13)
+  window.__recHealth = () => ({
+    listening,
+    secsSinceEvent: lastRecEvent ? Math.round((Date.now() - lastRecEvent) / 1000) : null,
+    looksDeaf: recLooksDeaf(),
+    energyMeter: energyTimer ? 'on' : 'off',
+    rms: Math.round(lastEnergyRms * 1000) / 1000,
+    voiceStreakMs,
+  });
 }
 
 // Chrome's SpeechRecognition is network-backed and ends itself on silence
@@ -583,6 +616,118 @@ if (typeof window !== 'undefined') {
 // and one failed restart kills it). `starting` dedups in-flight starts; the
 // watchdog below guarantees recovery within ~1s no matter how it died.
 let starting = false;
+
+// Every recognizer event stamps this. A HEALTHY silent session self-
+// terminates fast (no-speech at ~8s, plain end by ~25s — July 13 field log),
+// so a session still "live" with NO events past that is a ZOMBIE: Chrome's
+// network stream stopped returning results without ending. That zombie sat
+// deaf for 2.5 minutes while the badge showed listening (July 13, Tucker
+// saying "four" at the screen) — the v29 watchdog can't see it because
+// `listening` never goes false. Staleness is the only observable symptom.
+let lastRecEvent = 0;
+const REC_STALE_MS = 20000; // silence-only fallback bound (no energy monitor)
+
+function recAlive() { lastRecEvent = Date.now(); }
+
+/* ---------------- mic-energy deaf detector ----------------
+   Waiting on recognizer events alone can't beat ~20s: a HEALTHY quiet
+   session also delivers nothing for ~8s, so silence is ambiguous. But raw
+   mic energy is not: if someone is AUDIBLY TALKING and a "live" session
+   still produces zero events (a healthy one fires soundstart/interims
+   within ~1s of voice), the ear is provably dead — rebuild in ~2-3s, not
+   20. Detection speed scales with exactly the case that matters: a child
+   answering into a dead recognizer triggers the fastest rebuild. The 20s
+   silence bound stays only as the fallback when the meter is unavailable
+   (mic denied to gUM, no AudioContext). */
+let energyStream = null;   // parallel gUM stream feeding the meter
+let energyCtx = null;
+let energyAnalyser = null;
+let energyTimer = null;
+let energyBuf = null;
+let voiceStreakMs = 0;     // consecutive ms of voice-level input
+let lastEnergyRms = 0;
+let lastDeafRebuild = 0;
+const ENERGY_POLL_MS = 250;
+const ENERGY_VOICE_RMS = 0.06;     // well above room noise, well below speech at 1m
+const DEAF_STREAK_MS = 1500;       // sustained voice against a silent session...
+const DEAF_EVENT_GAP_MS = 2500;    // ...with no recognizer events this recent
+const DEAF_REBUILD_COOLDOWN = 5000;
+
+async function startEnergyMonitor() {
+  if (energyTimer || !navigator.mediaDevices?.getUserMedia) return;
+  energyTimer = -1; // claim before the await so a second call can't race
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
+    // mic toggled off (or monitor stopped) while we awaited — release and bail
+    if (!store.data.settings.micOn || energyTimer !== -1) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    energyStream = stream;
+    energyCtx = new (window.AudioContext || window.webkitAudioContext)();
+    energyCtx.createMediaStreamSource(energyStream).connect(
+      energyAnalyser = energyCtx.createAnalyser());
+    energyAnalyser.fftSize = 512;
+    energyBuf = new Uint8Array(energyAnalyser.fftSize);
+    // analyser contexts start suspended without a gesture — any tap resumes
+    const resume = () => { if (energyCtx && energyCtx.state === 'suspended') energyCtx.resume().catch(() => {}); };
+    for (const ev of ['pointerup', 'touchend', 'click']) {
+      window.addEventListener(ev, resume, { passive: true });
+    }
+    resume();
+    energyTimer = setInterval(() => {
+      if (!energyAnalyser) return;
+      energyAnalyser.getByteTimeDomainData(energyBuf);
+      let sum = 0;
+      for (let i = 0; i < energyBuf.length; i++) { const d = (energyBuf[i] - 128) / 128; sum += d * d; }
+      lastEnergyRms = Math.sqrt(sum / energyBuf.length);
+      // Count voice only while the game ISN'T talking — its speaker output
+      // leaks into the meter and must never look like an unheard child.
+      voiceStreakMs = (!muted && lastEnergyRms > ENERGY_VOICE_RMS) ? voiceStreakMs + ENERGY_POLL_MS : 0;
+      if (
+        voiceStreakMs >= DEAF_STREAK_MS && listening &&
+        Date.now() - lastRecEvent > DEAF_EVENT_GAP_MS &&
+        Date.now() - lastDeafRebuild > DEAF_REBUILD_COOLDOWN
+      ) {
+        lastDeafRebuild = Date.now();
+        voiceStreakMs = 0;
+        voiceAudit({ rec: 'deaf-rebuild', note: `voice heard, no events ${Math.round((Date.now() - lastRecEvent) / 1000)}s` });
+        rebuildRecognizer('deaf-rebuild');
+      }
+    }, ENERGY_POLL_MS);
+  } catch (err) {
+    energyTimer = null; // meter unavailable — the 20s silence bound still guards
+    voiceAudit({ rec: 'energy-unavailable', note: String(err && err.name || err).slice(0, 40) });
+  }
+}
+
+function stopEnergyMonitor() {
+  if (energyTimer && energyTimer !== -1) clearInterval(energyTimer);
+  energyTimer = null;
+  energyStream?.getTracks().forEach((t) => t.stop());
+  energyStream = null;
+  energyCtx?.close().catch(() => {});
+  energyCtx = null; energyAnalyser = null;
+  voiceStreakMs = 0;
+}
+
+// Tear down a (possibly wedged) recognizer and bring up a fresh one — a
+// dead instance can refuse start() with InvalidStateError forever, so
+// recovery must never reuse it. Handlers detached so ghost events from the
+// old instance can't confuse the new ear.
+function rebuildRecognizer(reason) {
+  const dead = rec;
+  if (dead) {
+    dead.onresult = dead.onstart = dead.onend = dead.onerror = null;
+    dead.onaudiostart = dead.onsoundstart = dead.onspeechstart = null;
+    try { dead.abort(); } catch { /* wedged — abandoning it regardless */ }
+  }
+  rec = null; listening = false; starting = false;
+  lastRecEvent = Date.now();
+  create();
+  safeStart(reason);
+  updateDot();
+}
 
 function safeStart(reason) {
   if (!rec || !store.data.settings.micOn || listening || starting) return;
@@ -602,16 +747,20 @@ function create() {
   rec.interimResults = true;
   rec.maxAlternatives = 3;
   rec.lang = 'en-US';
-  rec.onresult = handleResults;
-  rec.onstart = () => { recGen++; starting = false; listening = true; voiceAudit({ rec: 'live' }); updateDot(); };
+  rec.onresult = (e) => { recAlive(); handleResults(e); };
+  rec.onaudiostart = recAlive;
+  rec.onsoundstart = recAlive;
+  rec.onspeechstart = recAlive;
+  rec.onstart = () => { recGen++; starting = false; listening = true; recAlive(); voiceAudit({ rec: 'live' }); updateDot(); };
   rec.onend = () => {
-    listening = false; starting = false; updateDot();
+    listening = false; starting = false; recAlive(); updateDot();
     voiceAudit({ rec: 'end' });
     // Restart fast; the watchdog is the backstop if this throw-and-dies.
     if (store.data.settings.micOn) setTimeout(() => safeStart('onend'), 150);
   };
   rec.onerror = (e) => {
     starting = false;
+    recAlive();
     voiceAudit({ rec: 'error', note: e.error });
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
       store.data.settings.micOn = false; // permission denied — turn the mode off
@@ -635,7 +784,17 @@ let watchdog = null;
 function startWatchdog() {
   if (watchdog || !SR) return;
   watchdog = setInterval(() => {
-    if (store.data.settings.micOn && !listening && !starting) safeStart('watchdog');
+    if (!store.data.settings.micOn) return;
+    if (!listening && !starting) { safeStart('watchdog'); return; }
+    // Zombie detection, silence-only fallback: "live" but eventless past
+    // the point where a healthy silent session would have self-terminated.
+    // The mic-energy detector above usually beats this to it (~2-3s when
+    // someone is audibly talking); this bound covers meter-less setups.
+    if (listening && lastRecEvent && Date.now() - lastRecEvent > REC_STALE_MS) {
+      voiceAudit({ rec: 'stale-rebuild', note: `${Math.round((Date.now() - lastRecEvent) / 1000)}s silent` });
+      rebuildRecognizer('stale-rebuild');
+    }
+    updateDot(); // keeps the stale (deaf-ear) badge state current
   }, 1000);
 }
 function stopWatchdog() { clearInterval(watchdog); watchdog = null; }
@@ -646,9 +805,11 @@ export function voiceRefresh() {
   if (store.data.settings.micOn) {
     if (!rec) create();
     startWatchdog();
+    startEnergyMonitor(); // deaf detector rides along whenever the mic is on
     safeStart('refresh');
   } else if (rec) {
     stopWatchdog();
+    stopEnergyMonitor();
     if (listening) { try { rec.stop(); } catch { /* already stopped */ } }
   }
 }

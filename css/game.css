@@ -234,9 +234,18 @@ body {
   animation: mic-pulse 1.4s ease infinite;
   filter: drop-shadow(0 .3vmin .5vmin rgba(0,0,0,.5));
 }
+/* game's own voice audible — informational blue, NOT a mute (input stays
+   live; the echo ledger discounts the game's own words) */
 #micDot.muted {
-  background: rgba(230, 60, 50, .6);
-  box-shadow: 0 0 0 .5vmin rgba(230, 60, 50, .35);
+  background: rgba(70, 130, 235, .6);
+  box-shadow: 0 0 0 .5vmin rgba(70, 130, 235, .35);
+  animation: none;
+}
+/* zombie recognizer: session "live" but eventless — the ear is deaf and a
+   rebuild is imminent (energy detector ~2-3s / silence fallback 20s) */
+#micDot.stale {
+  background: rgba(235, 170, 40, .65);
+  box-shadow: 0 0 0 .5vmin rgba(235, 170, 40, .4);
   animation: none;
 }
 @keyframes mic-pulse { 50% { opacity: .45; transform: scale(.9); } }
@@ -259,7 +268,8 @@ body {
 }
 #micCaption.match { color: #7ed957; font-weight: 600; }
 #micCaption.idle { opacity: .5; }
-#micCaption.muted-state { color: #ff7a68; opacity: .85; }
+#micCaption.muted-state { color: #8db4ff; opacity: .85; }  /* game talking — informational */
+#micCaption.stale-state { color: #ffc04d; opacity: .95; }  /* deaf ear — rebuild imminent */
 
 /* DEBUG: collapsed tab (bottom-right, clear of the tile tray) that expands
    into a live voice-log panel — "what was heard and why it was/wasn't
